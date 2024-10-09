@@ -40,10 +40,10 @@ class CompletionEngine():
         np_logits = np.array(logits, copy=False)
         return tokens, np_logits[tokens]
 
-    def get_logits_raw(self, prompt_tokens) -> np.ndarray: ...
+    def get_logits_raw(self, model_input) -> np.ndarray: ...
     # this method should be implemented by the subclass
 
-    def get_model_input(self, tokenized_prompt, node_tokens) -> Union[np.ndarray, 'mlx.core.array']: ...
+    def encode_prompt(self, prompt: str) -> Union["torch.Tensor", "mlx.core.array"]: ...
     # this method should be implemented by the subclass
 
     @staticmethod
@@ -140,7 +140,7 @@ def standardize_str(s: str, EOS_str: str) -> str:
 def build_completion_tree(prompt: str, engine: CompletionEngine, mod, letter: str = '', max_depth: int = 3):
     EOS_str = str(engine.tokenizer.eos_token)
     EOS_id = int(engine.tokenizer.eos_token_id)
-    tokenized_prompt = mod.array(engine.tokenizer.encode(prompt))
+    tokenized_prompt = engine.encode_prompt(prompt)
     root = CompletionNode(
             mod.array([], dtype=tokenized_prompt.dtype),
             '',

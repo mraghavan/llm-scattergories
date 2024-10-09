@@ -29,13 +29,16 @@ class CompletionEngineMLX(CompletionEngine):
         model, tokenizer = load(model_name)
         return CompletionEngineMLX(model, tokenizer, epsilon, max_temperature, top_p, nickname)
 
-    def get_logits_raw(self, prompt_tokens: mx.array):
+    def get_logits_raw(self, model_input) -> np.ndarray:
         cache = None
-        logits = self.model(prompt_tokens[None], cache=cache)
+        logits = self.model(model_input[None], cache=cache)
         logits = logits[:, -1, :]
         logits = logits.squeeze(0)
         logits = np.array(logits)
         return logits
+
+    def encode_prompt(self, prompt: str) -> mx.array:
+        return mx.array(self.tokenizer.encode(prompt))
 
 if __name__ == '__main__':
     import random
@@ -45,7 +48,7 @@ if __name__ == '__main__':
     # print('Loading model:', model_name)
     # model, tokenizer = load(model_name)
     # print('Model loaded')
-    engine = CompletionEngineMLX.get_completion_engine(model_name, max_temperature=0.5, nickname=model_name)
+    engine = CompletionEngineMLX.get_completion_engine(model_name, max_temperature=0.8, nickname=model_name)
     random.seed(0)
     letter, category = get_random_letter_and_category()
     print("Letter:", letter)
