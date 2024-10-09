@@ -26,12 +26,12 @@ def make_str_safe(s: str) -> str:
 def get_pickle_filename(tree_dir: str, letter: str, category: str, max_temperature: float, nickname: str) -> str:
     category = make_str_safe(category)
     if nickname:
-        return f'{tree_dir}/{letter}_{category}_{max_temperature}_{nickname}.pkl'
-    return f'{tree_dir}/{letter}_{category}_{max_temperature}.pkl'
+        return f'{tree_dir}/{letter}_{category}_{max_temperature}_{nickname}_t.pkl'
+    return f'{tree_dir}/{letter}_{category}_{max_temperature}_t.pkl'
 
 def parse_pickle_filename(filename: str) -> tuple[str, str, float, str] | None:
     # TODO: fix this
-    m = re.match(r'([A-Z])_(.+)_(\d+(\.\d+)?)_(.+).pkl', filename)
+    m = re.match(r'([A-Z])_(.+)_(\d+(\.\d+)?)_(.+)_t.pkl', filename)
     if m is None:
         return None
     return m.group(1), m.group(2), float(m.group(3)), m.group(5)
