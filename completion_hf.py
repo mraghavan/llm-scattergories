@@ -22,10 +22,16 @@ class CompletionEngineHF(CompletionEngine):
             nickname: str='',
             ) -> 'CompletionEngine':
         tokenizer = AutoTokenizer.from_pretrained(model_name)
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=torch.float16
-        )
+        if torch.cuda.is_available():
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                torch_dtype=torch.float16
+            )
+        else:
+            # For some reason half precision doesn't work on CPU
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+            )
         return CompletionEngineHF(model, tokenizer, epsilon, max_temperature, top_p, nickname)
 
     def __init__(self, model, tokenizer, epsilon, max_temperature, top_p, nickname):
