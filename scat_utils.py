@@ -52,6 +52,9 @@ def get_random_categories(n: int):
         categories[i] = categories[i].strip()
     return random.sample(categories, n)
 
+def get_random_instances(n: int):
+    return [get_random_letter_and_category() for _ in range(n)]
+
 def get_eval_prompt(answer: str, category: str, tokenizer):
     messages = [
             {"role": "system", "content": "You are a helpful assistant. Answer in as few words as possible, with no explanations."},
