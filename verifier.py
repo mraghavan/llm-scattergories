@@ -1,7 +1,7 @@
-from mlx_lm.utils import load
-import mlx.core as mx
+# from mlx_lm.utils import load
+# import mlx.core as mx
 from scat_utils import get_eval_prompt, is_yes
-from completion_utils import CompletionEngine
+# from completion_utils import CompletionEngine
 
 class Verifier():
     def __init__(self, model, tokenizer):
