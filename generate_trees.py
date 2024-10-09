@@ -98,7 +98,7 @@ def verify_trees(trees: list[CompletionNode], verifier: Verifier, output_dir: st
     return verified_dict
 
 if __name__ == '__main__':
-    print(args)
+    print('[LOG ARGS]', args)
     models = args.models.split(',')
     if len(models) == 1 and models[0] == 'all':
         models = sorted(list(MODELS.keys()))
