@@ -29,16 +29,16 @@ class CompletionEngineMLX(CompletionEngine):
         model, tokenizer = load(model_name)
         return CompletionEngineMLX(model, tokenizer, epsilon, max_temperature, top_p, nickname)
 
-    def get_logits_raw(self, model_input) -> np.ndarray:
+    def get_logits_raw(self, model_input: list) -> np.ndarray:
         cache = None
-        logits = self.model(model_input[None], cache=cache)
+        logits = self.model(mx.array(model_input)[None], cache=cache)
         logits = logits[:, -1, :]
         logits = logits.squeeze(0)
         logits = np.array(logits)
         return logits
 
     def encode_prompt(self, prompt: str) -> mx.array:
-        return mx.array(self.tokenizer.encode(prompt))
+        return self.tokenizer.encode(prompt)
 
 if __name__ == '__main__':
     import random
@@ -56,4 +56,4 @@ if __name__ == '__main__':
     prompt = get_scat_prompt(letter, category, engine.tokenizer)
     print("Prompt:")
     print(prompt)
-    build_completion_tree(prompt, engine, mx, letter=letter, max_depth=3)
+    build_completion_tree(prompt, engine, letter=letter, max_depth=3)

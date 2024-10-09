@@ -21,7 +21,7 @@ class CompletionEngine():
         self.top_p = top_p
         self.nickname = nickname
 
-    def get_logits(self, prompt_tokens: ArrayLike):
+    def get_logits(self, prompt_tokens: list) -> tuple[ArrayLike, ArrayLike]:
         cache = None
         logits = self.get_logits_raw(prompt_tokens)
         if self.max_temperature == 0:
@@ -58,7 +58,7 @@ class CompletionEngine():
 class CompletionNode():
     def __init__(
             self,
-            tokens: Union[np.ndarray, 'mlx.core.array'],
+            tokens: list,
             text: str,
             EOS: int,
             EOS_str: str,
@@ -137,12 +137,12 @@ def standardize_str(s: str, EOS_str: str) -> str:
     s = re.sub('[^a-zA-Z ]+', '', s).lower().strip()
     return re.sub('  ', ' ', s)
 
-def build_completion_tree(prompt: str, engine: CompletionEngine, mod, letter: str = '', max_depth: int = 3):
+def build_completion_tree(prompt: str, engine: CompletionEngine, letter: str = '', max_depth: int = 3):
     EOS_str = str(engine.tokenizer.eos_token)
     EOS_id = int(engine.tokenizer.eos_token_id)
     tokenized_prompt = engine.encode_prompt(prompt)
     root = CompletionNode(
-            mod.array([], dtype=tokenized_prompt.dtype),
+            [],
             '',
             EOS=EOS_id,
             EOS_str=EOS_str,
@@ -159,17 +159,20 @@ def build_completion_tree(prompt: str, engine: CompletionEngine, mod, letter: st
         # slight optimization to only consider completions starting with the letter
         if len(node.tokens) > 0 and not node.text.strip().lower().startswith(letter.lower()):
             continue
-        tokens, logits = engine.get_logits(mod.concatenate([tokenized_prompt, node.tokens]))
+        # tokens, logits = engine.get_logits(mod.concatenate([tokenized_prompt, mod.array(node.tokens, dtype=tokenized_prompt.dtype)]))
+        # print(type(tokenized_prompt))
+        # print(tokenized_prompt.shape)
+        tokens, logits = engine.get_logits(tokenized_prompt + node.tokens)
         probs = softmax_temperature(logits, engine.max_temperature)
         for token, prob, logit in zip(tokens, probs, logits):
             if prob * node.prob < engine.epsilon:
                 continue
             # Consider using engine.tokenizer.eos_token_id somewhere
             token = int(token)
-            child_tokens = mod.concatenate([node.tokens, mod.array([token], dtype=node.tokens.dtype)])
+            child_tokens = list(node.tokens) + [token]
             child = CompletionNode(
                 tokens=child_tokens,
-                text=engine.tokenizer.decode(child_tokens.tolist()),
+                text=engine.tokenizer.decode(child_tokens),
                 EOS=EOS_id,
                 EOS_str=EOS_str,
                 prob=prob * node.prob,

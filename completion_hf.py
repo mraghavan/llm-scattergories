@@ -39,48 +39,28 @@ class CompletionEngineHF(CompletionEngine):
         model.to(device)
         CompletionEngineHF.DEVICE = device
 
-    def get_logits_raw(self, model_input):
+    def get_logits_raw(self, model_input: list):
+        torch_input = torch.tensor(model_input).unsqueeze(0).to(self.DEVICE)
         with torch.no_grad():
-            logits = self.model(**model_input)
+            # TODO use_cache?
+            logits = self.model(input_ids = torch_input, use_cache=False).logits
         logits = logits[:, -1, :]
         logits = logits.squeeze(0).to('cpu')
         logits = np.array(logits)
         return logits
 
     def encode_prompt(self, prompt: str):
-        return self.tokenizer(prompt, return_tensors="pt").to(self.DEVICE)
+        return self.tokenizer(prompt, return_tensors="pt")['input_ids'].flatten().tolist()
 
 if __name__ == '__main__':
     import random
     from scat_utils import get_random_letter_and_category, get_scat_prompt
     print('Testing completion with HF')
     model_name = MODELS['smollm']
-    # print('Loading model:', model_name)
-    # model, tokenizer = load(model_name)
-    # print('Model loaded')
-    engine = CompletionEngineHF.get_completion_engine(model_name, max_temperature=0.5, nickname=model_name)
+    engine = CompletionEngineHF.get_completion_engine(model_name, max_temperature=0.8, nickname=model_name)
     random.seed(0)
     letter, category = get_random_letter_and_category()
     print("Letter:", letter)
     print("Category:", category)
     prompt = get_scat_prompt(letter, category, engine.tokenizer)
-    inputs = engine.encode_prompt(prompt)
-    print(type(inputs))
-    # TODO do we want to use cache?
-    inputs['use_cache'] = False
-    print(inputs)
-    with torch.no_grad():
-        outputs = engine.model(**inputs)
-    print(outputs.logits.shape)
-    logits = outputs.logits[:, -1, :]
-    logits = logits.squeeze(0).to('cpu')
-    logits = np.array(logits)
-    best_token = np.argmax(logits)
-    print(best_token)
-    prompt_with_response = torch.cat([
-            inputs['input_ids'].flatten(),
-            torch.tensor([best_token])
-            ])
-    print(engine.tokenizer.decode(prompt_with_response))
-    # print(outputs.shape)
-    # build_completion_tree(prompt, engine, np, letter=letter, max_depth=3)
+    build_completion_tree(prompt, engine, letter=letter, max_depth=3)
