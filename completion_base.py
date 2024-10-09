@@ -77,6 +77,7 @@ class CompletionNode():
         self.logits = []
         self.EOS = EOS
         self.EOS_str = EOS_str
+        self.model_name = ''
 
     def add_child(self, child: 'CompletionNode', logit: float):
         self.children.append(child)
@@ -109,8 +110,9 @@ class CompletionNode():
         for child in self.children:
             child.standardize_tree()
 
-    def pickle_tree(self, filename: str):
+    def pickle_tree(self, filename: str, model_name: str = ''):
         print('Pickling tree to', filename)
+        self.model_name = model_name
         with open(filename, 'wb') as f:
             pickle.dump(self, f)
 
