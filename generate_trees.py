@@ -62,8 +62,9 @@ def create_tree_if_necessary(
         start = time.time()
         tree = build_completion_tree(prompt, engine, letter, max_depth=3)
         elapsed = time.time() - start
-        print(f'Elapsed time: {elapsed:.2f} seconds')
+        print(f'[TIME] Elapsed time for single tree {engine.nickname}: {elapsed:.2f} seconds')
         tree.standardize_tree()
+        print('[SIZE] Number of nodes:', len(list(tree.iter_leaves())))
         tree.pickle_tree(fname, MODELS[engine.nickname])
     return tree
 
@@ -99,6 +100,8 @@ def verify_trees(trees: list[CompletionNode], verifier: Verifier, output_dir: st
 if __name__ == '__main__':
     print(args)
     models = args.models.split(',')
+    if len(models) == 1 and models[0] == 'all':
+        models = sorted(list(MODELS.keys()))
     for model in models:
         if model not in MODELS:
             raise ValueError(f'Invalid model: {model}')
@@ -127,10 +130,10 @@ if __name__ == '__main__':
         del engine
     elapsed = time.time() - start
     print('Finished generating trees')
-    print(f'Total elapsed time for tree generation: {elapsed:.2f} seconds')
+    print(f'[TIME] Total elapsed time for all tree generation: {elapsed:.2f} seconds')
     verifier = Verifier(verifier_model_name, CE, nickname=args.verifier)
     start = time.time()
     for (letter, category), trees in tree_map.items():
         verify_trees(trees, verifier, args.output_dir, category, letter)
     elapsed = time.time() - start
-    print(f'Total elapsed time for verification: {elapsed:.2f} seconds')
+    print(f'[TIME] Total elapsed time for verification: {elapsed:.2f} seconds')
