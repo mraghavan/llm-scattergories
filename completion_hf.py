@@ -4,7 +4,8 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 MODELS = {
-        'llama3.1': 'meta-llama/Meta-Llama-3-8B-Instruct',
+        'llama3': 'meta-llama/Meta-Llama-3-8B-Instruct',
+        'llama3.1': 'meta-llama/Llama-3.1-8B-Instruct',
         'llama3.2': 'meta-llama/Llama-3.2-1B-Instruct',
         'smollm': 'HuggingFaceTB/SmolLM-1.7B-Instruct',
           }
