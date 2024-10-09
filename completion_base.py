@@ -46,6 +46,15 @@ class CompletionEngine():
     def get_model_input(self, tokenized_prompt, node_tokens) -> Union[np.ndarray, 'mlx.core.array']: ...
     # this method should be implemented by the subclass
 
+    @staticmethod
+    def get_completion_engine(
+            model_name: str,
+            epsilon: float=1e-4,
+            max_temperature: float=1.0,
+            top_p: float=0.95,
+            nickname: str='',
+            ) -> 'CompletionEngine': ...
+
 class CompletionNode():
     def __init__(
             self,

@@ -18,6 +18,17 @@ MODELS = {
           }
 
 class CompletionEngineMLX(CompletionEngine):
+    @staticmethod
+    def get_completion_engine(
+            model_name: str,
+            epsilon: float=1e-4,
+            max_temperature: float=1.0,
+            top_p: float=0.95,
+            nickname: str='',
+            ) -> 'CompletionEngine':
+        model, tokenizer = load(model_name)
+        return CompletionEngineMLX(model, tokenizer, epsilon, max_temperature, top_p, nickname)
+
     def get_logits_raw(self, prompt_tokens: mx.array):
         cache = None
         logits = self.model(prompt_tokens[None], cache=cache)
@@ -31,15 +42,15 @@ if __name__ == '__main__':
     from scat_utils import get_random_letter_and_category, get_scat_prompt
     print('Testing completion with MLX')
     model_name = MODELS['llama3.2']
-    print('Loading model:', model_name)
-    model, tokenizer = load(model_name)
-    print('Model loaded')
-    engine = CompletionEngineMLX(model, tokenizer, max_temperature=0.5, nickname=model_name)
+    # print('Loading model:', model_name)
+    # model, tokenizer = load(model_name)
+    # print('Model loaded')
+    engine = CompletionEngineMLX.get_completion_engine(model_name, max_temperature=0.5, nickname=model_name)
     random.seed(0)
     letter, category = get_random_letter_and_category()
     print("Letter:", letter)
     print("Category:", category)
-    prompt = get_scat_prompt(letter, category, tokenizer)
+    prompt = get_scat_prompt(letter, category, engine.tokenizer)
     print("Prompt:")
     print(prompt)
     build_completion_tree(prompt, engine, mx, letter=letter, max_depth=3)
