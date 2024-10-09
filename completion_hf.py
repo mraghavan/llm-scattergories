@@ -1,4 +1,4 @@
-from completion_base import CompletionEngine, build_completion_tree
+from completion_base import CompletionEngine
 import numpy as np
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
@@ -55,6 +55,7 @@ class CompletionEngineHF(CompletionEngine):
 if __name__ == '__main__':
     import random
     from scat_utils import get_random_letter_and_category, get_scat_prompt
+    from completion_base import build_completion_tree
     print('Testing completion with HF')
     model_name = MODELS['smollm']
     engine = CompletionEngineHF.get_completion_engine(model_name, max_temperature=0.8, nickname=model_name)

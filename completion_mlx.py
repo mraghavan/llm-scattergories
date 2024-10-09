@@ -1,4 +1,4 @@
-from completion_base import CompletionEngine, build_completion_tree
+from completion_base import CompletionEngine
 import numpy as np
 import mlx.core as mx
 from mlx_lm.utils import load
@@ -43,6 +43,7 @@ class CompletionEngineMLX(CompletionEngine):
 if __name__ == '__main__':
     import random
     from scat_utils import get_random_letter_and_category, get_scat_prompt
+    from completion_base import build_completion_tree
     print('Testing completion with MLX')
     model_name = MODELS['llama3.2']
     # print('Loading model:', model_name)
