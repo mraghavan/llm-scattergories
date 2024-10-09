@@ -64,7 +64,7 @@ def create_tree_if_necessary(
         elapsed = time.time() - start
         print(f'[LOG: TIME] Elapsed time for single tree {engine.nickname}: {elapsed:.2f} seconds')
         tree.standardize_tree()
-        print('[LOG: SIZE] Number of nodes {engine.nickname}:', len(list(tree.iter_leaves())))
+        print(f'[LOG: SIZE] Number of nodes {engine.nickname}:', len(list(tree.iter_leaves())))
         tree.pickle_tree(fname, MODELS[engine.nickname])
     return tree
 
