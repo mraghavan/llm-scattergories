@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=hf_model_test
-#SBATCH --output=hf_model_test_%j.out
-#SBATCH --error=hf_model_test_%j.err
+#SBATCH --output=hf_completion_test.out
+#SBATCH --error=hf_completion_test.err
 #SBATCH --time=00:10:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
