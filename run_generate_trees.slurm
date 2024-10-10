@@ -17,4 +17,4 @@ export HF_TOKEN=$(cat ~/.HF_TOKEN)
 
 echo "Running script"
 # Run the Python script
-python3 generate_trees.py -f -m all -v llama3.1 -n 20
+python3 generate_trees.py -f -m mistral,phi3.5,nemotron,qwen2.5 -v llama3.1 -n 20
