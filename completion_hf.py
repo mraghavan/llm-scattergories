@@ -1,4 +1,5 @@
 from completion_base import CompletionEngine
+import time
 import numpy as np
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
@@ -11,7 +12,7 @@ MODELS = {
           }
 
 
-class CompletionEngineHF(CompletionEngine):
+class CompletionEngineHFCached(CompletionEngine):
     DEVICE = None
     @staticmethod
     def get_completion_engine(
@@ -32,7 +33,7 @@ class CompletionEngineHF(CompletionEngine):
             model = AutoModelForCausalLM.from_pretrained(
                 model_name,
             )
-        return CompletionEngineHF(model, tokenizer, epsilon, max_temperature, top_p, nickname)
+        return CompletionEngineHFCached(model, tokenizer, epsilon, max_temperature, top_p, nickname)
 
     def __init__(self, model, tokenizer, epsilon, max_temperature, top_p, nickname):
         super().__init__(model, tokenizer, epsilon, max_temperature, top_p, nickname)
@@ -44,7 +45,7 @@ class CompletionEngineHF(CompletionEngine):
             print("GPU is not available. Using CPU.")
             device = torch.device("cpu")
         model.to(device)
-        CompletionEngineHF.DEVICE = device
+        CompletionEngineHFCached.DEVICE = device
 
     def get_logits_raw(self, model_input: list):
         # TODO speed up by batching
@@ -62,14 +63,18 @@ class CompletionEngineHF(CompletionEngine):
 
 if __name__ == '__main__':
     import random
-    from scat_utils import get_random_letter_and_category, get_scat_prompt
+    from scat_utils import get_random_instances, get_scat_prompt
     from completion_base import build_completion_tree
     print('Testing completion with HF')
-    model_name = MODELS['smollm']
-    engine = CompletionEngineHF.get_completion_engine(model_name, max_temperature=0.8, nickname=model_name)
+    model_name = MODELS['llama3.1']
+    engine = CompletionEngineHFCached.get_completion_engine(model_name, max_temperature=0.5, nickname=model_name)
     random.seed(0)
-    letter, category = get_random_letter_and_category()
-    print("Letter:", letter)
-    print("Category:", category)
-    prompt = get_scat_prompt(letter, category, engine.tokenizer)
-    build_completion_tree(prompt, engine, letter=letter, max_depth=3)
+    instances = get_random_instances(10)
+    for letter, category in instances:
+        print("Letter:", letter)
+        print("Category:", category)
+        prompt = get_scat_prompt(letter, category, engine.tokenizer)
+        start = time.time()
+        build_completion_tree(prompt, engine, letter=letter, max_depth=3)
+        elapsed = time.time() - start
+        print(f"[LOG] Elapsed time: {elapsed:.2f} seconds")
