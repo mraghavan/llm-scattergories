@@ -141,8 +141,12 @@ def generate_score_data(
                     info['nash_eq_contiguous'] = False
                 else:
                     info['nash_eq_contiguous'] = True
-        info['nash_eq'] = np.mean([temps[i] for i in eq_inds])
-        info['nash_eq_util'] = np.mean([scores[i, i] for i in eq_inds])
+        if len(eq_inds) == 0:
+            info['nash_eq'] = np.NaN
+            info['nash_eq_util'] = np.NaN
+        else:
+            info['nash_eq'] = np.mean([temps[i] for i in eq_inds])
+            info['nash_eq_util'] = np.mean([scores[i, i] for i in eq_inds])
         symmetric = [scores[i, i] for i in range(len(temps))]
         info['opt'] = temps[np.argmax(symmetric)]
         info['opt_util'] = np.max(symmetric)
