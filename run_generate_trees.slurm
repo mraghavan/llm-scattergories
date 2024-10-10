@@ -2,7 +2,7 @@
 #SBATCH --job-name=hf_model_test
 #SBATCH --output=log_generate_trees_%j.out
 #SBATCH --error=log_generate_trees_%j.err
-#SBATCH --time=01:00:00
+#SBATCH --time=02:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=10G
@@ -17,4 +17,4 @@ export HF_TOKEN=$(cat ~/.HF_TOKEN)
 
 echo "Running script"
 # Run the Python script
-python3 generate_trees.py -f -t 1.2 -m smollm,llama3,llama3.1,llama3.2 -v llama3.1 -n 2
+python3 generate_trees.py -f -m smollm,llama3,llama3.1,llama3.2 -v llama3.1 -n 20
