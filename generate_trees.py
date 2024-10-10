@@ -119,6 +119,15 @@ def verify_trees(trees: list[CompletionNode], verifier: Verifier, output_dir: st
         pickle.dump(verified_dict, f)
     return verified_dict
 
+def get_model_list(models: str) -> list[str]:
+    if models == 'all':
+        return sorted(list(MODELS.keys()))
+    model_list = models.split(',')
+    for model in model_list:
+        if model not in MODELS:
+            raise ValueError(f'Invalid model: {model}')
+    return sorted(model_list)
+
 if __name__ == '__main__':
     args = parser.parse_args()
     if args.use_hf:
@@ -126,12 +135,7 @@ if __name__ == '__main__':
     else:
         from completion_mlx import CompletionEngineMLX as CE, MODELS
     print('[LOG ARGS]', args)
-    models = args.models.split(',')
-    if len(models) == 1 and models[0] == 'all':
-        models = sorted(list(MODELS.keys()))
-    for model in models:
-        if model not in MODELS:
-            raise ValueError(f'Invalid model: {model}')
+    models = get_model_list(args.models)
     max_temperatures = [MAX_TEMPS[MODELS[model]] for model in models]
     random.seed(0)
     instances = get_random_instances(args.num_instances)
