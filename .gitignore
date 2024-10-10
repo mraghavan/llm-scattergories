@@ -1,5 +1,6 @@
 trees/
 scores/
+img/
 *.out
 *.err
 
