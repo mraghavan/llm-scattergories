@@ -20,9 +20,9 @@ else:
     from completion_mlx import CompletionEngineMLX as CE, MODELS
 
 MAX_TEMPS = {
-        'meta-llama/Meta-Llama-3-8B-Instruct': 2.3,
-        'meta-llama/Llama-3.1-8B-Instruct': 2.3,
-        'meta-llama/Llama-3.2-1B-Instruct': 1.8,
+        'meta-llama/Meta-Llama-3-8B-Instruct': 2.5,
+        'meta-llama/Llama-3.1-8B-Instruct': 2.5,
+        'meta-llama/Llama-3.2-1B-Instruct': 2.0,
         'HuggingFaceTB/SmolLM-1.7B-Instruct': 1.2,
         'mlx-community/Meta-Llama-3.1-8B-Instruct-8bit': 1.5,
         'mlx-community/Meta-Llama-3-8B-Instruct-8bit': 1.5,
