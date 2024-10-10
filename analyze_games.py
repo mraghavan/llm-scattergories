@@ -192,10 +192,8 @@ if __name__ == '__main__':
     job_num = args.job_num
     total_jobs = args.total_jobs
     # contiguous jobs
-    jobs_per_task = len(all_jobs) // total_jobs
+    jobs_per_task = len(all_jobs) // total_jobs + 1
     my_jobs = all_jobs[jobs_per_task*job_num:jobs_per_task*(job_num+1)]
-    if job_num == total_jobs - 1:
-        my_jobs += all_jobs[jobs_per_task*total_jobs:]
     print(f'Job {job_num+1} of {total_jobs}: {my_jobs}')
     print(len(my_jobs))
     loaded_models = {}
