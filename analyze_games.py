@@ -206,14 +206,15 @@ if __name__ == '__main__':
     loaded_models = {}
     loaded_verified = {}
     for model, n, eta in my_jobs:
+        max_temp = MAX_TEMPS[MODELS[model]]
         if model not in loaded_models:
-            loaded_models[model] = load_games_for_model(model, tree_dir, MAX_TEMPS[MODELS[model]])
+            loaded_models[model] = load_games_for_model(model, tree_dir, max_temp)
         for (letter, category) in loaded_models[model]:
             if (letter, category) not in loaded_verified:
                 with open(get_v_filename(tree_dir, letter, category, args.verifier), 'rb') as f:
                     loaded_verified[(letter, category)] = pickle.load(f)
         letter_category_pairs = sorted(loaded_models[model].keys())
-        info = {'model': model, 'n': n, 'eta': eta, 'games': letter_category_pairs}
+        info = {'model': model, 'n': n, 'eta': eta, 'games': letter_category_pairs, 'max_temperature': max_temp}
         fname = get_score_fname(output_dir, model, n, eta)
         if os.path.exists(fname):
             print(f'{fname} already exists')
