@@ -9,6 +9,8 @@ MODELS = {
         'llama3.1': 'meta-llama/Llama-3.1-8B-Instruct',
         'llama3.2': 'meta-llama/Llama-3.2-1B-Instruct',
         'smollm': 'HuggingFaceTB/SmolLM-1.7B-Instruct',
+        'qwen2': 'Qwen/Qwen2-7B',
+        'gemma2': 'google/gemma-2-9b-it',
           }
 
 
