@@ -47,13 +47,14 @@ class CompletionEngineHF(CompletionEngine):
         CompletionEngineHF.DEVICE = device
 
     def get_logits_raw(self, model_input: list):
+        # TODO speed up by batching
         torch_input = torch.tensor(model_input).unsqueeze(0).to(self.DEVICE)
         with torch.no_grad():
             # TODO use_cache?
             logits = self.model(input_ids = torch_input, use_cache=False).logits
         logits = logits[:, -1, :]
         logits = logits.squeeze(0).to('cpu')
-        logits = np.array(logits)
+        logits = np.array(logits) # shape: (vocab_size,)
         return logits
 
     def encode_prompt(self, prompt: str):

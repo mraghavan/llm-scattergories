@@ -1,4 +1,5 @@
 import time
+import torch
 import os
 import re
 import pickle
@@ -141,6 +142,8 @@ if __name__ == '__main__':
             else:
                 tree_map[(letter, category)].append(tree)
         del engine
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
     elapsed = time.time() - start
     print('Finished generating trees')
     print(f'[LOG: TIME] Total elapsed time for all tree generation: {elapsed:.2f} seconds')
