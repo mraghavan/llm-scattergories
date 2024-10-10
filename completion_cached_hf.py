@@ -12,7 +12,7 @@ MODELS = {
           }
 
 
-class CompletionEngineHF(CompletionEngine):
+class CompletionEngineHFCached(CompletionEngine):
     DEVICE = None
     @staticmethod
     def get_completion_engine(
@@ -33,7 +33,7 @@ class CompletionEngineHF(CompletionEngine):
             model = AutoModelForCausalLM.from_pretrained(
                 model_name,
             )
-        return CompletionEngineHF(model, tokenizer, epsilon, max_temperature, top_p, nickname)
+        return CompletionEngineHFCached(model, tokenizer, epsilon, max_temperature, top_p, nickname)
 
     def __init__(self, model, tokenizer, epsilon, max_temperature, top_p, nickname):
         super().__init__(model, tokenizer, epsilon, max_temperature, top_p, nickname)
@@ -45,7 +45,7 @@ class CompletionEngineHF(CompletionEngine):
             print("GPU is not available. Using CPU.")
             device = torch.device("cpu")
         model.to(device)
-        CompletionEngineHF.DEVICE = device
+        CompletionEngineHFCached.DEVICE = device
 
     def get_logits_raw(self, model_input: list):
         # TODO speed up by batching
@@ -96,7 +96,7 @@ class CompletionEngineHF(CompletionEngine):
         logits = np.array(logits)
         return logits
 
-def build_completion_tree(prompt: str, engine: CompletionEngineHF, letter: str = '', max_depth: int = 3):
+def build_completion_tree(prompt: str, engine: CompletionEngineHFCached, letter: str = '', max_depth: int = 3):
     EOS_str = str(engine.tokenizer.eos_token)
     EOS_id = int(engine.tokenizer.eos_token_id)
     engine.set_prefix_prompt(prompt)
@@ -150,7 +150,7 @@ if __name__ == '__main__':
     from completion_base import build_completion_tree
     print('Testing completion with HF and caching')
     model_name = MODELS['llama3.1']
-    engine = CompletionEngineHF.get_completion_engine(model_name, max_temperature=1.5, nickname=model_name)
+    engine = CompletionEngineHFCached.get_completion_engine(model_name, max_temperature=1.5, nickname=model_name)
     random.seed(0)
     instances = get_random_instances(3)
     for letter, category in instances:

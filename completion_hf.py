@@ -12,7 +12,7 @@ MODELS = {
           }
 
 
-class CompletionEngineHFCached(CompletionEngine):
+class CompletionEngineHF(CompletionEngine):
     DEVICE = None
     @staticmethod
     def get_completion_engine(
@@ -33,7 +33,7 @@ class CompletionEngineHFCached(CompletionEngine):
             model = AutoModelForCausalLM.from_pretrained(
                 model_name,
             )
-        return CompletionEngineHFCached(model, tokenizer, epsilon, max_temperature, top_p, nickname)
+        return CompletionEngineHF(model, tokenizer, epsilon, max_temperature, top_p, nickname)
 
     def __init__(self, model, tokenizer, epsilon, max_temperature, top_p, nickname):
         super().__init__(model, tokenizer, epsilon, max_temperature, top_p, nickname)
@@ -45,7 +45,7 @@ class CompletionEngineHFCached(CompletionEngine):
             print("GPU is not available. Using CPU.")
             device = torch.device("cpu")
         model.to(device)
-        CompletionEngineHFCached.DEVICE = device
+        CompletionEngineHF.DEVICE = device
 
     def get_logits_raw(self, model_input: list):
         # TODO speed up by batching
@@ -67,7 +67,7 @@ if __name__ == '__main__':
     from completion_base import build_completion_tree
     print('Testing completion with HF')
     model_name = MODELS['llama3.1']
-    engine = CompletionEngineHFCached.get_completion_engine(model_name, max_temperature=1.5, nickname=model_name)
+    engine = CompletionEngineHF.get_completion_engine(model_name, max_temperature=1.5, nickname=model_name)
     random.seed(0)
     instances = get_random_instances(3)
     for letter, category in instances:
