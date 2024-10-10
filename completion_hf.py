@@ -11,6 +11,7 @@ MODELS = {
         'smollm': 'HuggingFaceTB/SmolLM-1.7B-Instruct',
         'qwen2': 'Qwen/Qwen2-7B',
         'gemma2': 'google/gemma-2-2b-it',
+        'mistral': 'mistralai/Mistral-7B-Instruct-v0.3',
           }
 
 
