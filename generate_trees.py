@@ -125,7 +125,7 @@ def get_model_list(models: str, allowed_models: set[str]) -> list[str]:
         return sorted(list(allowed_models))
     model_list = models.split(',')
     for model in model_list:
-        if model not in MODELS:
+        if model not in allowed_models:
             raise ValueError(f'Invalid model: {model}')
     return sorted(model_list)
 
