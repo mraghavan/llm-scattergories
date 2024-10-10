@@ -147,7 +147,21 @@ if __name__ == '__main__':
     elapsed = time.time() - start
     print('Finished generating trees')
     print(f'[LOG: TIME] Total elapsed time for all tree generation: {elapsed:.2f} seconds')
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+    allocated_memory = torch.cuda.memory_allocated(device)
+    print(f"[LOG] Memory allocated: {allocated_memory / (1024 ** 2)} MB")
+    reserved_memory = torch.cuda.memory_reserved(device)
+    print(f"[LOG] Memory reserved: {reserved_memory / (1024 ** 2)} MB")
+
     verifier = Verifier(verifier_model_name, CE, nickname=args.verifier)
+
+    allocated_memory = torch.cuda.memory_allocated(device)
+    print(f"[LOG] Memory allocated after loading verifier: {allocated_memory / (1024 ** 2)} MB")
+    reserved_memory = torch.cuda.memory_reserved(device)
+    print(f"[LOG] Memory reserved after loading verifier: {reserved_memory / (1024 ** 2)} MB")
     start = time.time()
     for (letter, category), trees in tree_map.items():
         verify_trees(trees, verifier, args.output_dir, category, letter)
