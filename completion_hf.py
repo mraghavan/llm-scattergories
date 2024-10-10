@@ -10,7 +10,7 @@ MODELS = {
         'llama3.2': 'meta-llama/Llama-3.2-1B-Instruct',
         'smollm': 'HuggingFaceTB/SmolLM-1.7B-Instruct',
         'qwen2': 'Qwen/Qwen2-7B',
-        'gemma2': 'google/gemma-2-9b-it',
+        'gemma2': 'google/gemma-2-2b-it',
           }
 
 

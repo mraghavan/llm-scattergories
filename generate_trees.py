@@ -22,7 +22,7 @@ MAX_TEMPS = {
         'meta-llama/Llama-3.2-1B-Instruct': 2.0,
         'HuggingFaceTB/SmolLM-1.7B-Instruct': 1.2,
         'Qwen/Qwen2-7B': 1.5,
-        'google/gemma-2-9b-it': 1.5,
+        'google/gemma-2-2b-it': 1.5,
         'mlx-community/Meta-Llama-3.1-8B-Instruct-8bit': 1.5,
         'mlx-community/Meta-Llama-3-8B-Instruct-8bit': 1.5,
         # 'gemma2': 'mlx-community/gemma-2-9b-8bit', (not an instruct mocdel)
