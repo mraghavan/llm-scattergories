@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=hf_model_test
+#SBATCH --job-name=generate_trees
 #SBATCH --output=log_generate_trees_%j.out
 #SBATCH --error=log_generate_trees_%j.err
 #SBATCH --time=03:00:00
@@ -17,4 +17,4 @@ export HF_TOKEN=$(cat ~/.HF_TOKEN)
 
 echo "Running script"
 # Run the Python script
-python3 generate_trees.py -f -m gemma2 -v llama3.1 -n 20
+python3 generate_trees.py -f -m all -v llama3.1 -n 20
