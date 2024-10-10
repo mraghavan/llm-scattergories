@@ -67,7 +67,7 @@ if __name__ == '__main__':
     from completion_base import build_completion_tree
     print('Testing completion with HF')
     model_name = MODELS['llama3.1']
-    engine = CompletionEngineHFCached.get_completion_engine(model_name, max_temperature=0.5, nickname=model_name)
+    engine = CompletionEngineHFCached.get_completion_engine(model_name, max_temperature=1.5, nickname=model_name)
     random.seed(0)
     instances = get_random_instances(10)
     for letter, category in instances:
