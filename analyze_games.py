@@ -179,7 +179,7 @@ if __name__ == '__main__':
     else:
         from completion_mlx import MODELS
     print('[LOG ARGS]', args)
-    models = get_model_list(args.models)
+    models = get_model_list(args.models, set(MODELS.keys()))
 
     output_dir = args.output_dir
     tree_dir = args.tree_dir
