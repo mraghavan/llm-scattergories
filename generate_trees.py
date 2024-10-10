@@ -140,7 +140,7 @@ if __name__ == '__main__':
     verifier_model_name = MODELS[args.verifier]
     start = time.time()
     for nickname, max_temperature in zip(models, max_temperatures):
-        print(f'Loading model: {nickname}')
+        print(f'[LOG] Loading model: {nickname} at temp {max_temperature}')
         model_name = MODELS[nickname]
         engine = CE.get_completion_engine(model_name, max_temperature=max_temperature, nickname=nickname)
         for letter, category in instances:
