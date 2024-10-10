@@ -153,7 +153,7 @@ def build_completion_tree(prompt: str, engine: CompletionEngine, letter: str = '
     nodes = [root]
     while nodes:
         node = nodes.pop(0)
-        print('Expanding node', node)
+        # print('Expanding node', node)
         if node.depth == max_depth:
             continue
         if len(node.tokens) > 0 and node.tokens[-1] == EOS_id:
