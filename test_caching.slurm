@@ -2,7 +2,7 @@
 #SBATCH --job-name=hf_cache_test
 #SBATCH --output=log_cache_test.out
 #SBATCH --error=log_cache_test.err
-#SBATCH --time=00:10:00
+#SBATCH --time=00:30:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=10G
