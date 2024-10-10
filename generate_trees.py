@@ -15,11 +15,6 @@ parser.add_argument('--verifier', '-v', type=str, default='llama3.1')
 parser.add_argument('--num_instances', '-n', type=int, default=20)
 parser.add_argument('--use_hf', '-f', action='store_true', default=False)
 parser.add_argument('--output_dir', '-o', type=str, default='./trees')
-args = parser.parse_args()
-if args.use_hf:
-    from completion_hf import CompletionEngineHF as CE, MODELS
-else:
-    from completion_mlx import CompletionEngineMLX as CE, MODELS
 
 MAX_TEMPS = {
         'meta-llama/Meta-Llama-3-8B-Instruct': 2.5,
@@ -36,9 +31,11 @@ MAX_TEMPS = {
         'mlx-community/SmolLM-1.7B-Instruct-fp16': 1.5,
         'mlx-community/Mistral-Nemo-Instruct-2407-4bit': 1.5,
         # 'phi3': 'mlx-community/Phi-3-small-8k-instruct-AQ4_32', (haven't tried yet)
-        'mlx-community/Phi-3.5-mini-instruct-bf16': 1.5,
+        # 'mlx-community/Phi-3.5-mini-instruct-bf16': 1.5,
+        'mlx-community/Phi-3.5-mini-instruct-bf16': 0.5,
         # "yi1.5": 'mlx-community/Yi-1.5-9B-Chat-4bit', (haven't tried yet)
-        'mlx-community/Llama-3.2-3B-Instruct-8bit': 1.5,
+        # 'mlx-community/Llama-3.2-3B-Instruct-8bit': 1.5,
+        'mlx-community/Llama-3.2-3B-Instruct-8bit': 0.5,
         }
 
 def make_str_safe(s: str) -> str:
@@ -119,6 +116,11 @@ def verify_trees(trees: list[CompletionNode], verifier: Verifier, output_dir: st
     return verified_dict
 
 if __name__ == '__main__':
+    args = parser.parse_args()
+    if args.use_hf:
+        from completion_hf import CompletionEngineHF as CE, MODELS
+    else:
+        from completion_mlx import CompletionEngineMLX as CE, MODELS
     print('[LOG ARGS]', args)
     models = args.models.split(',')
     if len(models) == 1 and models[0] == 'all':
