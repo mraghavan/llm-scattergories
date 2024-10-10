@@ -190,7 +190,7 @@ if __name__ == '__main__':
     tree_dir = args.tree_dir
 
     etas = [1.0]
-    ns = [1, 2, 3, 5]
+    ns = [1, 2, 3, 5, 10, 20, 35]
     all_jobs = get_all_jobs(models, ns, etas)
     print(all_jobs)
     print(len(all_jobs))
