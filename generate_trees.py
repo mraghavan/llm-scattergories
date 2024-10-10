@@ -142,13 +142,13 @@ if __name__ == '__main__':
                 tree_map[(letter, category)] = [tree]
             else:
                 tree_map[(letter, category)].append(tree)
+        print('[LOG] Current memory allocated before cleanup:', torch.cuda.memory_allocated() / (1024 ** 2))
         del engine
         gc.collect()
         if torch.cuda.is_available():
-            print('[LOG] Current memory allocated before clearing cache:', torch.cuda.memory_allocated() / (1024 ** 2))
             torch.cuda.empty_cache()
             print('[LOG] Cleared cache for model:', nickname)
-            print('[LOG] Current memory allocated after clearing cache:', torch.cuda.memory_allocated() / (1024 ** 2))
+            print('[LOG] Current memory allocated after cleanup:', torch.cuda.memory_allocated() / (1024 ** 2))
     elapsed = time.time() - start
     print('Finished generating trees')
     print(f'[LOG: TIME] Total elapsed time for all tree generation: {elapsed:.2f} seconds')
