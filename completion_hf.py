@@ -10,8 +10,9 @@ MODELS = {
         'llama3.2': 'meta-llama/Llama-3.2-1B-Instruct',
         'smollm': 'HuggingFaceTB/SmolLM-1.7B-Instruct',
         'qwen2': 'Qwen/Qwen2-7B',
-        'gemma2': 'google/gemma-2-2b-it',
+        # 'gemma2': 'google/gemma-2-2b-it', # (no system role in chat template)
         'mistral': 'mistralai/Mistral-7B-Instruct-v0.3',
+        'phi3.5': 'microsoft/Phi-3.5-mini-instruct',
           }
 
 
