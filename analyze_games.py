@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import pickle
-from generate_trees import parse_pickle_filename, get_v_filename, MAX_TEMPS
+from generate_trees import parse_pickle_filename, get_v_filename, MAX_TEMPS, get_model_list
 from collections.abc import Callable
 from completion_base import CompletionNode
 from math import comb
@@ -179,12 +179,7 @@ if __name__ == '__main__':
     else:
         from completion_mlx import MODELS
     print('[LOG ARGS]', args)
-    models = args.models.split(',')
-    if len(models) == 1 and models[0] == 'all':
-        models = sorted(list(MODELS.keys()))
-    for model in models:
-        if model not in MODELS:
-            raise ValueError(f'Invalid model: {model}')
+    models = get_model_list(args.models)
 
     output_dir = args.output_dir
     tree_dir = args.tree_dir
