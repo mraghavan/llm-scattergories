@@ -10,7 +10,6 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--models', '-m', type=str, required=True)
 parser.add_argument('--verifier', '-v', type=str, default='llama3.1')
-parser.add_argument('--max_temperatures', '-t', type=str, default='1.0')
 parser.add_argument('--num_instances', '-n', type=int, default=20)
 parser.add_argument('--use_hf', '-f', action='store_true', default=False)
 parser.add_argument('--output_dir', '-o', type=str, default='./trees')
@@ -19,6 +18,24 @@ if args.use_hf:
     from completion_hf import CompletionEngineHF as CE, MODELS
 else:
     from completion_mlx import CompletionEngineMLX as CE, MODELS
+
+MAX_TEMPS = {
+        'meta-llama/Meta-Llama-3-8B-Instruct': 2.3,
+        'meta-llama/Llama-3.1-8B-Instruct': 2.3,
+        'meta-llama/Llama-3.2-1B-Instruct': 1.8,
+        'HuggingFaceTB/SmolLM-1.7B-Instruct': 1.2,
+        'mlx-community/Meta-Llama-3.1-8B-Instruct-8bit': 1.5,
+        'mlx-community/Meta-Llama-3-8B-Instruct-8bit': 1.5,
+        # 'gemma2': 'mlx-community/gemma-2-9b-8bit', (not an instruct mocdel)
+        'mlx-community/Qwen1.5-7B-Chat-4bit': 1.5,
+        # 'openelm1_1': 'mlx-community/OpenELM-1_1B-Instruct-8bit', (no chat template)
+        'mlx-community/SmolLM-1.7B-Instruct-fp16': 1.5,
+        'mlx-community/Mistral-Nemo-Instruct-2407-4bit': 1.5,
+        # 'phi3': 'mlx-community/Phi-3-small-8k-instruct-AQ4_32', (haven't tried yet)
+        'mlx-community/Phi-3.5-mini-instruct-bf16': 1.5,
+        # "yi1.5": 'mlx-community/Yi-1.5-9B-Chat-4bit', (haven't tried yet)
+        'mlx-community/Llama-3.2-3B-Instruct-8bit': 1.5,
+        }
 
 def make_str_safe(s: str) -> str:
     return re.sub('/', ' ', s).strip()
@@ -105,11 +122,7 @@ if __name__ == '__main__':
     for model in models:
         if model not in MODELS:
             raise ValueError(f'Invalid model: {model}')
-    max_temperatures = [float(t) for t in args.max_temperatures.split(',')]
-    if len(max_temperatures) == 1:
-        max_temperatures = [max_temperatures[0]] * len(models)
-    elif len(max_temperatures) != len(models):
-        raise ValueError('Number of models and number of max temperatures must match')
+    max_temperatures = [MAX_TEMPS[MODELS[model]] for model in models]
     random.seed(0)
     instances = get_random_instances(args.num_instances)
     print(instances)
