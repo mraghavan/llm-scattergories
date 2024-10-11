@@ -1,4 +1,5 @@
 import time
+import sys
 import gc
 import torch
 import os
@@ -11,10 +12,12 @@ from verifier import Verifier
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--models', '-m', type=str, required=True)
-parser.add_argument('--verifier', '-v', type=str, default='llama3.1')
+parser.add_argument('--verifier', '-v', type=str, default='')
 parser.add_argument('--num_instances', '-n', type=int, default=20)
 parser.add_argument('--use_hf', '-f', action='store_true', default=False)
 parser.add_argument('--output_dir', '-o', type=str, default='./trees')
+parser.add_argument('--job_num', '-j', type=int, default=0)
+parser.add_argument('--num_jobs', '-t', type=int, default=1)
 
 MAX_TEMPS = {
         'meta-llama/Meta-Llama-3-8B-Instruct': 2.5,
@@ -137,16 +140,24 @@ if __name__ == '__main__':
         from completion_mlx import CompletionEngineMLX as CE, MODELS
     print('[LOG ARGS]', args)
     models = get_model_list(args.models, set(MODELS.keys()))
+    if args.job_num >= len(models):
+        print(f'[LOG] Job number {args.job_num} is out of range')
+        sys.exit(0)
+    models = models[args.job_num::args.num_jobs]
+    print(f'[LOG] Models to be used: {models}')
     max_temperatures = [MAX_TEMPS[MODELS[model]] for model in models]
     random.seed(0)
     instances = get_random_instances(args.num_instances)
     print(instances)
     tree_map = {}
-    verifier_model_name = MODELS[args.verifier]
     start = time.time()
     for nickname, max_temperature in zip(models, max_temperatures):
         print(f'[LOG] Loading model: {nickname} at temp {max_temperature}')
         model_name = MODELS[nickname]
+        all_file_names = [get_pickle_filename(args.output_dir, letter, category, max_temperature, nickname) for letter, category in instances]
+        if all([os.path.exists(fname) for fname in all_file_names]):
+            print('[LOG] All trees already exist for model:', nickname)
+            continue
         engine = CE.get_completion_engine(model_name, max_temperature=max_temperature, nickname=nickname)
         for letter, category in instances:
             print(f'Model: {nickname}; Letter: {letter}; Category: {category}')
@@ -174,6 +185,12 @@ if __name__ == '__main__':
     reserved_memory = torch.cuda.memory_reserved(device)
     print(f"[LOG] Memory reserved: {reserved_memory / (1024 ** 2)} MB")
 
+    if args.verifier not in MODELS:
+        print(f'[LOG] Skipping verification: {args.verifier}')
+        sys.exit(0)
+
+
+    verifier_model_name = MODELS[args.verifier]
     verifier = Verifier(verifier_model_name, CE, nickname=args.verifier)
 
     allocated_memory = torch.cuda.memory_allocated(device)
