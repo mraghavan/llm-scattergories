@@ -1,4 +1,6 @@
 import os
+import time
+from functools import lru_cache
 import numpy as np
 import pickle
 from generate_trees import parse_pickle_filename, get_v_filename, MAX_TEMPS, get_model_list
@@ -41,11 +43,36 @@ def get_score(tree: CompletionNode,
     return score
     # return 1/n * (len(verified_dist) - sum((1-p)**n for p in verified_dist.values()))
 
+def binomial_sum_eta_one(n, p):
+    # only works for lambda i: 1/(1+i)
+    candidate1 = (1 - (1-p)**(n+1)) / np.float64((n+1)*p)
+    candidate2 = 1 - n*p/2
+    return max(candidate1, candidate2)
+
+
 def binomial_sum(n: int, p: float, f: Callable[[int], float]):
     s = 0
     for i in range(n+1):
         s += comb(n, i) * p**i * (1-p)**(n-i) * f(i)
     return s
+
+def binomial_sum_vec(n: int, p: float, fs: np.ndarray):
+    s = 0
+    for i in range(n+1):
+        s += comb(n, i) * p**i * (1-p)**(n-i) * fs[i]
+    return s
+
+@lru_cache
+def get_comb_array(n: int):
+    return np.array([comb(n, i) for i in range(n+1)])
+
+def faster_binomial_sum_vector(n: int, p: float, fs: np.ndarray):
+    s = np.sum(get_comb_array(n) * p**np.arange(n+1) * (1-p)**np.arange(n, -1, -1) * fs)
+    return s
+
+@lru_cache
+def get_f_vector(n: int, eta: float):
+    return np.array([1/(1+i)**eta for i in range(n)])
 
 def get_score_two_temps_from_dists(dist1: dict,
                                    dist2: dict,
@@ -65,7 +92,13 @@ def get_score_two_temps_from_dists(dist1: dict,
         if k not in verified_dist2 or verified_dist2[k] == 0:
             total += verified_dist1[k]
         else:
-            total += verified_dist1[k] * binomial_sum(n-1, verified_dist2[k], lambda i: 1/(1 + i)**eta)
+            if eta == 1.0:
+                total += verified_dist1[k] * binomial_sum_eta_one(n-1, verified_dist2[k])
+            elif n > 10:
+                total += verified_dist1[k] * faster_binomial_sum_vector(n-1, verified_dist2[k], get_f_vector(n, eta)) # seems to be better for n > 10
+            else:
+                total += verified_dist1[k] * binomial_sum_vec(n-1, verified_dist2[k], get_f_vector(n, eta))
+                # total += verified_dist1[k] * binomial_sum(n-1, verified_dist2[k], lambda i: 1/(1 + i)**eta)
 
             # Use a bound from the Taylor expansion to deal with numeric instability
             # candidate1 = (1 - (1-verified_dist2[k])**n) / np.float64(n*verified_dist2[k])
@@ -212,7 +245,10 @@ if __name__ == '__main__':
             continue
         game_trees = [loaded_models[model][(letter, category)] for letter, category in letter_category_pairs]
         game_verified = [loaded_verified[(letter, category)]['yes'] for letter, category in letter_category_pairs]
+        start = time.time()
         generate_score_data(game_trees, game_verified, n, eta, info)
+        elapsed = time.time() - start
+        print(f'[LOG TIME]: Elapsed time: {elapsed:.2f}s')
         with open(fname, 'wb') as f:
             print(f'Saving scores to {fname}')
             pickle.dump(info, f)
