@@ -117,10 +117,12 @@ class CompletionNode():
             pickle.dump(self, f)
 
     def iter_leaves(self):
+        # sorted by logits
         if not self.children:
             yield self
-        for child in self.children:
-            yield from child.iter_leaves()
+        logits_argsort = np.argsort(self.logits)[::-1]
+        for i in logits_argsort:
+            yield from self.children[i].iter_leaves()
 
 def softmax_temperature(logits: np.ndarray, temperature: float):
     # numerically stable softmax
