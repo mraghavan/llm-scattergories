@@ -3,6 +3,7 @@ scores/
 img/
 *.out
 *.err
+.DS_Store
 
 
 # Byte-compiled / optimized / DLL files
