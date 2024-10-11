@@ -2,7 +2,7 @@
 #SBATCH --job-name=generate_trees
 #SBATCH --output=log_generate_trees_%j.out
 #SBATCH --error=log_generate_trees_%j.err
-#SBATCH --time=03:00:00
+#SBATCH --time=10:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=10G
@@ -17,4 +17,4 @@ export HF_TOKEN=$(cat ~/.HF_TOKEN)
 
 echo "Running script"
 # Run the Python script
-python3 generate_trees.py -f -m nemotron,minitron -v llama3.1 -n 20
+python3 generate_trees.py -f -m all -v llama3.1 -n 50
