@@ -157,6 +157,12 @@ if __name__ == '__main__':
         all_file_names = [get_pickle_filename(args.output_dir, letter, category, max_temperature, nickname) for letter, category in instances]
         if all([os.path.exists(fname) for fname in all_file_names]):
             print('[LOG] All trees already exist for model:', nickname)
+            for (letter, category) in instances:
+                tree = pickle.load(open(get_pickle_filename(args.output_dir, letter, category, max_temperature, nickname), 'rb'))
+                if (letter, category) not in tree_map:
+                    tree_map[(letter, category)] = [tree]
+                else:
+                    tree_map[(letter, category)].append(tree)
             continue
         engine = CE.get_completion_engine(model_name, max_temperature=max_temperature, nickname=nickname)
         for letter, category in instances:
