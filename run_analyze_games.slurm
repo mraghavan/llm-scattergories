@@ -2,7 +2,7 @@
 #SBATCH --job-name=analyze_games
 #SBATCH --output=log_analyze_games_%A_%a.out
 #SBATCH --error=log_analyze_games_%A_%a.err
-#SBATCH --time=04:00:00
+#SBATCH --time=10:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=10G
