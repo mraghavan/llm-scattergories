@@ -14,7 +14,7 @@ MODELS = {
         'mistral': 'mistralai/Mistral-7B-Instruct-v0.3',
         'phi3.5': 'microsoft/Phi-3.5-mini-instruct',
         'nemotron': 'nvidia/Nemotron-Mini-4B-Instruct',
-        'minitron': 'nvidia/Mistral-NeMo-Minitron-8B-Instruct',
+        # 'minitron': 'nvidia/Mistral-NeMo-Minitron-8B-Instruct',
         'qwen2.5': 'Qwen/Qwen2.5-7B-Instruct',
           }
 
