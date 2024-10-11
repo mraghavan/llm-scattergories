@@ -23,7 +23,7 @@ MAX_TEMPS = {
         'HuggingFaceTB/SmolLM-1.7B-Instruct': 1.2,
         'Qwen/Qwen2-7B': 1.5,
         'google/gemma-2-2b-it': 1.5,
-        'microsoft/Phi-3.5-mini-instruct': 2.3,
+        'microsoft/Phi-3.5-mini-instruct': 2.6,
         'mistralai/Mistral-7B-Instruct-v0.3': 2.3,
         'nvidia/Nemotron-Mini-4B-Instruct': 2.3,
         'nvidia/Mistral-NeMo-Minitron-8B-Instruct': 2.3,
