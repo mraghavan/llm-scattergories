@@ -1,4 +1,5 @@
-from analyze_games import get_score_fname, generate_score_data
+# from analyze_games import get_score_fname, generate_score_data
+import matplotlib.patches as mpatches
 from generate_trees import get_model_list
 import pandas as pd
 import numpy as np
@@ -10,6 +11,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--models', '-m', type=str, required=True)
 parser.add_argument('--use_mlx', '-x', action='store_true', default=False)
 parser.add_argument('--scores_dir', '-s', type=str, default='./scores')
+
+EQ_MARKER = '1'
+OPT_MARKER = '2'
 
 def load_scores(scores_dir: str, models: list[str]):
     scores = []
@@ -151,7 +155,8 @@ def plot_opt_and_eq_over_n(
     # plt.savefig(fname, dpi=300)
     # plt.clf()
 
-def plot_temp_over_axis_helper(all_scores: pd.DataFrame, metric='opt', axis='n', ls='-'):
+def plot_temp_over_axis_helper(all_scores: pd.DataFrame, metric='opt', axis='n', marker='.'):
+    handles = []
     if axis == 'n':
         other = ('gamma', 1.0)
     else:
@@ -182,20 +187,42 @@ def plot_temp_over_axis_helper(all_scores: pd.DataFrame, metric='opt', axis='n',
                 maxed_out.append((val, t))
             else:
                 temps.append(df[metric].iloc[0])
-        plt.plot(axis_vals, temps, label=model, marker='.', ls=ls)
+        handles.append(plt.plot(axis_vals, temps, label=model, marker=marker, ls=':', lw=.2)[0])
         if len(maxed_out) > 0:
             print(f'Model {model} maxed out: {maxed_out}')
             plt.scatter([x[0] for x in maxed_out], [x[1] for x in maxed_out], color=plt.gca().lines[-1].get_color(), marker='X')
+    return handles
+
+def make_legend(handles: list[plt.Line2D]):
+    new_handles = []
+    for i, handle in enumerate(handles):
+        new_handle = plt.Line2D([0], [0], color=handle.get_color(), label=handle.get_label(), marker=handle.get_marker(), linestyle='None')
+        if i < len(handles) // 2:
+            new_handle.set_label('')
+        new_handles.append(new_handle)
+    len_handles = len(new_handles)
+    opt = mpatches.Patch(color='None', label='OPT', linestyle='None')
+    eq = mpatches.Patch(color='None', label='EQ', linestyle='None')
+    # opt = plt.Line2D([0], [0], color='black', label='OPT', linestyle='None')
+    # eq = plt.Line2D([0], [0], color='black', label='EQ', linestyle='None')
+    new_handles = [eq] + new_handles[:len(new_handles) // 2] + [opt] + new_handles[len(new_handles) // 2:]
+    legend = plt.legend(handles=new_handles, ncol=2, columnspacing=-1.5, handletextpad=0.0)
+    for i, text in enumerate(legend.get_texts()):
+        if i == 0 or i == len_handles//2 + 1:  # Title patches
+            text.set_position((-75, -10))  # Move the text up
+        else:
+            text.set_position((10, 0))  # Add some padding to other labels
 
 def plot_sw_and_nash_temp_over_axis(
         all_scores: pd.DataFrame,
         axis='n',
         ):
-    plot_temp_over_axis_helper(all_scores, metric='nash_eq', axis=axis, ls='--')
-    plt.legend()
+    handles = plot_temp_over_axis_helper(all_scores, metric='nash_eq', axis=axis, marker=EQ_MARKER)
     # reset color cycle
     plt.gca().set_prop_cycle(None)
-    plot_temp_over_axis_helper(all_scores, metric='opt', axis=axis)
+    handles += plot_temp_over_axis_helper(all_scores, metric='opt', axis=axis, marker=OPT_MARKER)
+    make_legend(handles)
+    # plt.legend(handles=new_handles, ncol=2, columnspacing=-1.5)
     plt.xlabel(axis)
     plt.ylabel('Temperature')
     plt.title(f'Optimal and Nash equilibrium temperatures over {axis}')
@@ -208,12 +235,15 @@ def plot_sw_and_nash_welfare_over_axis(
         all_scores: pd.DataFrame,
         axis='n',
         ):
-    plot_temp_over_axis_helper(all_scores, metric='nash_eq_util', axis=axis, ls='--')
-    plt.legend()
+    handles = plot_temp_over_axis_helper(all_scores, metric='nash_eq_util', axis=axis, marker=EQ_MARKER)
     # reset color cycle
     plt.gca().set_prop_cycle(None)
-    plot_temp_over_axis_helper(all_scores, metric='opt_util', axis=axis)
-    plt.xlabel(axis)
+    handles += plot_temp_over_axis_helper(all_scores, metric='opt_util', axis=axis, marker=OPT_MARKER)
+    make_legend(handles)
+    if axis == 'n':
+        plt.xlabel('$n$')
+    else:
+        plt.xlabel(axis)
     plt.ylabel('Utility')
     plt.title(f'Optimal and Nash equilibrium utility over {axis}')
     fname = f'img/opt_and_eq_sw_over_{axis}.png'
