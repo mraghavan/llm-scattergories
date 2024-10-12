@@ -217,7 +217,7 @@ if __name__ == '__main__':
     output_dir = args.output_dir
     tree_dir = args.tree_dir
 
-    gammas = [1.0]
+    gammas = [0.5, 1.0, 2.0]
     ns = [1, 2, 3, 5, 10, 20, 35]
     all_jobs = get_all_jobs(models, ns, gammas)
     print('All jobs:', all_jobs)
