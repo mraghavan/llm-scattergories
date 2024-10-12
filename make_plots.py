@@ -245,7 +245,7 @@ def plot_surface(temps: np.ndarray, scores: np.ndarray, nash_eq: float, nash_eq_
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    if args.use_mlx
+    if args.use_mlx:
         from completion_mlx import MODELS
     else:
         from completion_hf import MODELS
