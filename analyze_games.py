@@ -220,16 +220,22 @@ if __name__ == '__main__':
     gammas = [1.0]
     ns = [1, 2, 3, 5, 10, 20, 35]
     all_jobs = get_all_jobs(models, ns, gammas)
-    print(all_jobs)
-    print(len(all_jobs))
+    print('All jobs:', all_jobs)
+    filtered_jobs = [(model, n, gamma) for model, n, gamma in all_jobs if not os.path.exists(get_score_fname(output_dir, model, n, gamma))]
+    print(filtered_jobs)
+    print(len(filtered_jobs))
     job_num = args.job_num
     total_jobs = args.total_jobs
-    my_jobs = all_jobs[job_num::total_jobs]
+    my_jobs = filtered_jobs[job_num::total_jobs]
     print(f'Job {job_num+1} of {total_jobs}: {my_jobs}')
     print(len(my_jobs))
     loaded_models = {}
     loaded_verified = {}
     for model, n, gamma in my_jobs:
+        fname = get_score_fname(output_dir, model, n, gamma)
+        if os.path.exists(fname):
+            print(f'{fname} already exists')
+            continue
         max_temp = MAX_TEMPS[MODELS[model]]
         if model not in loaded_models:
             loaded_models[model] = load_games_for_model(model, tree_dir, max_temp)
@@ -239,10 +245,6 @@ if __name__ == '__main__':
                     loaded_verified[(letter, category)] = pickle.load(f)
         letter_category_pairs = sorted(loaded_models[model].keys())
         info = {'model': model, 'n': n, 'gamma': gamma, 'games': letter_category_pairs, 'max_temperature': max_temp}
-        fname = get_score_fname(output_dir, model, n, gamma)
-        if os.path.exists(fname):
-            print(f'{fname} already exists')
-            continue
         game_trees = [loaded_models[model][(letter, category)] for letter, category in letter_category_pairs]
         game_verified = [loaded_verified[(letter, category)]['yes'] for letter, category in letter_category_pairs]
         start = time.time()
