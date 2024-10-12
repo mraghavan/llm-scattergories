@@ -33,11 +33,11 @@ def plot_symmetric_utility(
         model: str,
         ):
     ns = sorted(list(set(scores['n'].unique())))
-    etas = sorted(list(set(scores['eta'].unique())))
-    for eta in etas:
+    gammas = sorted(list(set(scores['gamma'].unique())))
+    for gamma in gammas:
         utilities = []
         for n in ns:
-            df = scores[(scores['n'] == n) & (scores['eta'] == eta)]
+            df = scores[(scores['n'] == n) & (scores['gamma'] == gamma)]
             if len(df) == 0:
                 continue
             temperatures = df['temperatures'].iloc[0]
@@ -55,36 +55,36 @@ def plot_symmetric_utility(
         plt.xlabel('Temperature')
         plt.ylabel('Utility for symmetric play')
         plt.legend()
-        plt.title(fr'{model} symmetric utility; $\eta = {eta}$')
-        plt.savefig(f'img/{model}_symmetric_utility_eta{eta}.png', dpi=300)
+        plt.title(fr'{model} symmetric utility; $\gamma = {gamma}$')
+        plt.savefig(f'img/{model}_symmetric_utility_gamma{gamma}.png', dpi=300)
         plt.clf()
 
         
-def plot_opt_and_eq_over_eta(
+def plot_opt_and_eq_over_gamma(
         scores: pd.DataFrame,
         model: str,
         ):
     ns = sorted(list(set(scores['n'].unique())))
-    etas = sorted(list(set(scores['eta'].unique())))
+    gammas = sorted(list(set(scores['gamma'].unique())))
     for n in ns:
         eqs = []
         opts = []
-        for eta in etas:
-            tag = (model, n, eta)
+        for gamma in gammas:
+            tag = (model, n, gamma)
             if tag not in scores:
                 print('Warning: tag not found:', tag)
                 continue
             eqs.append(scores[tag]['nash_eq'])
             opts.append(scores[tag]['opt'])
-        plt.plot(etas, eqs, label=fr'eq; $n={n}$')
-        plt.plot(etas, opts, label=fr'opt; $n={n}$', linestyle='--', color=plt.gca().lines[-1].get_color())
-    plt.xlabel(r'$\eta$')
+        plt.plot(gammas, eqs, label=fr'eq; $n={n}$')
+        plt.plot(gammas, opts, label=fr'opt; $n={n}$', linestyle='--', color=plt.gca().lines[-1].get_color())
+    plt.xlabel(r'$\gamma$')
     plt.ylabel('Temperature')
     plt.legend()
     # plt.legend(bbox_to_anchor=(1, 1))
     # plt.tight_layout()
     plt.title(f'{model} optimal and equilibrium temperatures')
-    plt.savefig(f'img/{model}_opt_and_eq_over_eta.png', dpi=300)
+    plt.savefig(f'img/{model}_opt_and_eq_over_gamma.png', dpi=300)
     plt.clf()
 
 def plot_opt_and_eq_over_n(
@@ -92,19 +92,19 @@ def plot_opt_and_eq_over_n(
         model: str,
         ):
     ns = sorted(list(set(tag[1] for tag in scores.keys())))
-    etas = sorted(list(set(tag[2] for tag in scores.keys())))
-    for eta in etas:
+    gammas = sorted(list(set(tag[2] for tag in scores.keys())))
+    for gamma in gammas:
         eqs = []
         opts = []
         for n in ns:
-            tag = (model, n, eta)
+            tag = (model, n, gamma)
             if tag not in scores:
                 print('Warning: tag not found:', tag)
                 continue
             eqs.append(scores[tag]['nash_eq'])
             opts.append(scores[tag]['opt'])
-        plt.plot(ns, eqs, label=fr'eq; $\eta = {eta}$')
-        plt.plot(ns, opts, label=fr'opt; $\eta = {eta}$', linestyle='--', color=plt.gca().lines[-1].get_color())
+        plt.plot(ns, eqs, label=fr'eq; $\gamma = {gamma}$')
+        plt.plot(ns, opts, label=fr'opt; $\gamma = {gamma}$', linestyle='--', color=plt.gca().lines[-1].get_color())
     plt.xlabel('n')
     plt.ylabel('Temperature')
     plt.legend(bbox_to_anchor=(1, 1))
@@ -115,7 +115,7 @@ def plot_opt_and_eq_over_n(
 
 # def plot_sw_and_nash_welfare_over_axis_helper(all_scores, metric, axis='n', ls='-'):
     # for model in sorted(all_scores['model'].unique()):
-        # model_scores = all_scores[(all_scores['model'] == model) & (all_scores['eta'] == eta)]
+        # model_scores = all_scores[(all_scores['model'] == model) & (all_scores['gamma'] == gamma)]
         # ns = sorted(model_scores['n'].unique())
         # print(model, ns)
         # opts = []
@@ -124,7 +124,7 @@ def plot_opt_and_eq_over_n(
                 # opts.append(None)
                 # continue
             # score = model_scores[model_scores['n'] == n]
-            # # print(model, n, eta)
+            # # print(model, n, gamma)
             # # print(model_scores)
             # if score[metric].iloc[0] == max(score['temperatures'].iloc[0]):
                 # opts.append(None)
@@ -133,7 +133,7 @@ def plot_opt_and_eq_over_n(
         # plt.plot(ns, opts, label=model)
     # plt.xlabel(r'$n$')
     # plt.ylabel(f'Social welfare at {metric}')
-    # plt.title(rf'$\eta = {eta}$')
+    # plt.title(rf'$\gamma = {gamma}$')
     # plt.legend()
     # fname = f'img/sw_over_n_{metric}.png'
     # print(f'Saving to {fname}')
@@ -153,7 +153,7 @@ def plot_opt_and_eq_over_n(
 
 def plot_temp_over_axis_helper(all_scores: pd.DataFrame, metric='opt', axis='n', ls='-'):
     if axis == 'n':
-        other = ('eta', 1.0)
+        other = ('gamma', 1.0)
     else:
         other = ('n', 2)
     for model in sorted(all_scores['model'].unique()):
@@ -307,8 +307,8 @@ if __name__ == '__main__':
 
     # plot_temp_over_axis(all_scores, 'opt', 'n')
     # plot_temp_over_axis(all_scores, 'nash_eq', 'n')
-    # plot_temp_over_axis(all_scores, 'opt', 'eta')
-    # plot_temp_over_axis(all_scores, 'nash_eq', 'eta')
+    # plot_temp_over_axis(all_scores, 'opt', 'gamma')
+    # plot_temp_over_axis(all_scores, 'nash_eq', 'gamma')
     # print(all_scores.keys())
     # all_models = set(tag[0] for tag in all_scores.keys())
     # ns = [2, 5, 10, 20, 50]
@@ -317,5 +317,5 @@ if __name__ == '__main__':
         # print(model)
         # model_scores = {tag: score for tag, score in all_scores.items() if tag[0] == model}
         # plot_opt_and_eq_over_n(all_scores[all_scores['model'] == model], model)
-        # plot_opt_and_eq_over_eta(all_scores[all_scores['model'] == model], model)
+        # plot_opt_and_eq_over_gamma(all_scores[all_scores['model'] == model], model)
         # plot_symmetric_utility(all_scores[all_scores['model'] == model], model)

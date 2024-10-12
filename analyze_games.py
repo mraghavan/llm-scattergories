@@ -20,14 +20,14 @@ parser.add_argument('--total_jobs', '-t', type=int, default=1)
 
 GRID_EPS = 0.02
 
-def get_score_fname(output_dir: str, model: str, n: int, eta: float):
-    return f'{output_dir}/{model}_n{n}_eta{eta}.pkl'
+def get_score_fname(output_dir: str, model: str, n: int, gamma: float):
+    return f'{output_dir}/{model}_n{n}_gamma{gamma}.pkl'
 
 def get_score(tree: CompletionNode,
               verified_y: set,
               temperature: float,
               n: int,
-              eta: float=1.0,
+              gamma: float=1.0,
               ):
     dist = tree.get_dist(temperature)
     verified_dist = {k: v for k, v in dist.items() if k in verified_y}
@@ -39,11 +39,11 @@ def get_score(tree: CompletionNode,
     # slower but more numerically stable
     for k in verified_dist:
         if verified_dist[k] > 0:
-            score += verified_dist[k] * binomial_sum(n-1, verified_dist[k], lambda i: 1/(1 + i)**eta)
+            score += verified_dist[k] * binomial_sum(n-1, verified_dist[k], lambda i: 1/(1 + i)**gamma)
     return score
     # return 1/n * (len(verified_dist) - sum((1-p)**n for p in verified_dist.values()))
 
-def binomial_sum_eta_one(n, p):
+def binomial_sum_gamma_one(n, p):
     # only works for lambda i: 1/(1+i)
     candidate1 = (1 - (1-p)**(n+1)) / np.float64((n+1)*p)
     candidate2 = 1 - n*p/2
@@ -71,14 +71,14 @@ def faster_binomial_sum_vector(n: int, p: float, fs: np.ndarray):
     return s
 
 @lru_cache
-def get_f_vector(n: int, eta: float):
-    return np.array([1/(1+i)**eta for i in range(n)])
+def get_f_vector(n: int, gamma: float):
+    return np.array([1/(1+i)**gamma for i in range(n)])
 
 def get_score_two_temps_from_dists(dist1: dict,
                                    dist2: dict,
                                    verified_y: set,
                                    n: int,
-                                   eta: float=1.0,
+                                   gamma: float=1.0,
                                    ):
     assert n > 1
     verified_dist1 = {k: v for k, v in dist1.items() if k in verified_y}
@@ -92,13 +92,13 @@ def get_score_two_temps_from_dists(dist1: dict,
         if k not in verified_dist2 or verified_dist2[k] == 0:
             total += verified_dist1[k]
         else:
-            if eta == 1.0:
-                total += verified_dist1[k] * binomial_sum_eta_one(n-1, verified_dist2[k])
+            if gamma == 1.0:
+                total += verified_dist1[k] * binomial_sum_gamma_one(n-1, verified_dist2[k])
             elif n > 10:
-                total += verified_dist1[k] * faster_binomial_sum_vector(n-1, verified_dist2[k], get_f_vector(n, eta)) # seems to be better for n > 10
+                total += verified_dist1[k] * faster_binomial_sum_vector(n-1, verified_dist2[k], get_f_vector(n, gamma)) # seems to be better for n > 10
             else:
-                total += verified_dist1[k] * binomial_sum_vec(n-1, verified_dist2[k], get_f_vector(n, eta))
-                # total += verified_dist1[k] * binomial_sum(n-1, verified_dist2[k], lambda i: 1/(1 + i)**eta)
+                total += verified_dist1[k] * binomial_sum_vec(n-1, verified_dist2[k], get_f_vector(n, gamma))
+                # total += verified_dist1[k] * binomial_sum(n-1, verified_dist2[k], lambda i: 1/(1 + i)**gamma)
 
             # Use a bound from the Taylor expansion to deal with numeric instability
             # candidate1 = (1 - (1-verified_dist2[k])**n) / np.float64(n*verified_dist2[k])
@@ -106,14 +106,14 @@ def get_score_two_temps_from_dists(dist1: dict,
             # total += verified_dist1[k] * max(candidate1, candidate2)
     return total
 
-def get_all_jobs(models: list[str], ns: list[int], etas: list[float]):
-    return list(product(models, ns, etas))
+def get_all_jobs(models: list[str], ns: list[int], gammas: list[float]):
+    return list(product(models, ns, gammas))
 
 def generate_score_data(
         trees: list[CompletionNode],
         verified_ys: list[set[str]],
         n: int,
-        eta: float=1.0,
+        gamma: float=1.0,
         info: dict = {},
         ):
     max_temperature = min(tree.max_temperature for tree in trees)
@@ -123,7 +123,7 @@ def generate_score_data(
         scores = np.zeros_like(temps)
         for tree, verified_y in zip(trees, verified_ys):
             for i, temp in enumerate(temps):
-                scores[i] += 1/num_games * get_score(tree, verified_y, temp, n, eta)
+                scores[i] += 1/num_games * get_score(tree, verified_y, temp, n, gamma)
         info['nash_eq'] = temps[np.argmax(scores)]
         info['nash_eq_util'] = np.max(scores)
         info['opt'] = temps[np.argmax(scores)]
@@ -138,7 +138,7 @@ def generate_score_data(
             for i, temp1 in enumerate(temps):
                 for j, temp2 in enumerate(temps):
                     # i is this player, j is the n-1 other players
-                    scores[i, j] += 1/num_games * get_score_two_temps_from_dists(dists[temp1], dists[temp2], verified_y, n, eta)
+                    scores[i, j] += 1/num_games * get_score_two_temps_from_dists(dists[temp1], dists[temp2], verified_y, n, gamma)
         # for j in range(len(temps)):
             # if not check_is_quasiconcave(scores[:, j]):
                 # print('Warning: quasiconcavity not satisfied at temperature', temps[j])
@@ -217,9 +217,9 @@ if __name__ == '__main__':
     output_dir = args.output_dir
     tree_dir = args.tree_dir
 
-    etas = [1.0]
+    gammas = [1.0]
     ns = [1, 2, 3, 5, 10, 20, 35]
-    all_jobs = get_all_jobs(models, ns, etas)
+    all_jobs = get_all_jobs(models, ns, gammas)
     print(all_jobs)
     print(len(all_jobs))
     job_num = args.job_num
@@ -229,7 +229,7 @@ if __name__ == '__main__':
     print(len(my_jobs))
     loaded_models = {}
     loaded_verified = {}
-    for model, n, eta in my_jobs:
+    for model, n, gamma in my_jobs:
         max_temp = MAX_TEMPS[MODELS[model]]
         if model not in loaded_models:
             loaded_models[model] = load_games_for_model(model, tree_dir, max_temp)
@@ -238,15 +238,15 @@ if __name__ == '__main__':
                 with open(get_v_filename(tree_dir, letter, category, args.verifier), 'rb') as f:
                     loaded_verified[(letter, category)] = pickle.load(f)
         letter_category_pairs = sorted(loaded_models[model].keys())
-        info = {'model': model, 'n': n, 'eta': eta, 'games': letter_category_pairs, 'max_temperature': max_temp}
-        fname = get_score_fname(output_dir, model, n, eta)
+        info = {'model': model, 'n': n, 'gamma': gamma, 'games': letter_category_pairs, 'max_temperature': max_temp}
+        fname = get_score_fname(output_dir, model, n, gamma)
         if os.path.exists(fname):
             print(f'{fname} already exists')
             continue
         game_trees = [loaded_models[model][(letter, category)] for letter, category in letter_category_pairs]
         game_verified = [loaded_verified[(letter, category)]['yes'] for letter, category in letter_category_pairs]
         start = time.time()
-        generate_score_data(game_trees, game_verified, n, eta, info)
+        generate_score_data(game_trees, game_verified, n, gamma, info)
         elapsed = time.time() - start
         print(f'[LOG TIME]: Elapsed time: {elapsed:.2f}s')
         with open(fname, 'wb') as f:
