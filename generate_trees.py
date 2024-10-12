@@ -14,7 +14,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--models', '-m', type=str, required=True)
 parser.add_argument('--verifier', '-v', type=str, default='')
 parser.add_argument('--num_instances', '-n', type=int, default=20)
-parser.add_argument('--use_hf', '-f', action='store_true', default=False)
+parser.add_argument('--use_mlx', '-x', action='store_true', default=False)
 parser.add_argument('--output_dir', '-o', type=str, default='./trees')
 parser.add_argument('--job_num', '-j', type=int, default=0)
 parser.add_argument('--num_jobs', '-t', type=int, default=1)
@@ -134,10 +134,10 @@ def get_model_list(models: str, allowed_models: set[str]) -> list[str]:
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    if args.use_hf:
-        from completion_hf import CompletionEngineHF as CE, MODELS
-    else:
+    if args.use_mlx:
         from completion_mlx import CompletionEngineMLX as CE, MODELS
+    else:
+        from completion_hf import CompletionEngineHF as CE, MODELS
     print('[LOG ARGS]', args)
     models = get_model_list(args.models, set(MODELS.keys()))
     if args.job_num >= len(models):

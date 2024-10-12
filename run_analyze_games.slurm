@@ -13,4 +13,4 @@ echo "Running script"
 # Run the Python script
 echo $SLURM_ARRAY_TASK_ID
 echo $SLURM_ARRAY_TASK_COUNT
-python3 analyze_games.py -f -m all -v llama3.1 -j $SLURM_ARRAY_TASK_ID -t $SLURM_ARRAY_TASK_COUNT
+python3 analyze_games.py -m all -v llama3.1 -j $SLURM_ARRAY_TASK_ID -t $SLURM_ARRAY_TASK_COUNT

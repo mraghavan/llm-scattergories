@@ -8,7 +8,7 @@ import os
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--models', '-m', type=str, required=True)
-parser.add_argument('--use_hf', '-f', action='store_true', default=False)
+parser.add_argument('--use_mlx', '-x', action='store_true', default=False)
 parser.add_argument('--scores_dir', '-s', type=str, default='./scores')
 
 def load_scores(scores_dir: str, models: list[str]):
@@ -245,10 +245,10 @@ def plot_surface(temps: np.ndarray, scores: np.ndarray, nash_eq: float, nash_eq_
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    if args.use_hf:
-        from completion_hf import MODELS
-    else:
+    if args.use_mlx
         from completion_mlx import MODELS
+    else:
+        from completion_hf import MODELS
     models = get_model_list(args.models, set(MODELS.keys()))
 
     all_scores = load_scores_into_df(args.scores_dir, models)

@@ -12,7 +12,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--models', '-m', type=str, required=True)
 parser.add_argument('--verifier', '-v', type=str, default='llama3.1')
-parser.add_argument('--use_hf', '-f', action='store_true', default=False)
+parser.add_argument('--use_mlx', '-x', action='store_true', default=False)
 parser.add_argument('--output_dir', '-o', type=str, default='./scores')
 parser.add_argument('--tree_dir', '-r', type=str, default='./trees')
 parser.add_argument('--job_num', '-j', type=int, default=0)
@@ -207,10 +207,10 @@ def load_games_for_model(model: str, tree_dir: str, temp: float):
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    if args.use_hf:
-        from completion_hf import MODELS
-    else:
+    if args.use_mlx:
         from completion_mlx import MODELS
+    else:
+        from completion_hf import MODELS
     print('[LOG ARGS]', args)
     models = get_model_list(args.models, set(MODELS.keys()))
 
@@ -234,6 +234,7 @@ if __name__ == '__main__':
     for model, n, gamma in my_jobs:
         fname = get_score_fname(output_dir, model, n, gamma)
         if os.path.exists(fname):
+            # This shouldn't happen
             print(f'{fname} already exists')
             continue
         max_temp = MAX_TEMPS[MODELS[model]]
