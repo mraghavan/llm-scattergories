@@ -17,4 +17,4 @@ export HF_TOKEN=$(cat ~/.HF_TOKEN)
 
 echo "Running script"
 # Run the Python script
-python3 generate_trees.py -m all -v llama3.1 -n 50
+python3 generate_trees.py -m all -v llama3.1 -n 75

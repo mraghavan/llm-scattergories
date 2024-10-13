@@ -18,4 +18,4 @@ export HF_TOKEN=$(cat ~/.HF_TOKEN)
 
 echo "Running script"
 # Run the Python script
-python3 generate_trees.py -m all -n 50 -j $SLURM_ARRAY_TASK_ID -t $SLURM_ARRAY_TASK_COUNT
+python3 generate_trees.py -m all -n 75 -j $SLURM_ARRAY_TASK_ID -t $SLURM_ARRAY_TASK_COUNT
