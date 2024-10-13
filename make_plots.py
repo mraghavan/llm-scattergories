@@ -12,8 +12,8 @@ parser.add_argument('--models', '-m', type=str, required=True)
 parser.add_argument('--use_mlx', '-x', action='store_true', default=False)
 parser.add_argument('--scores_dir', '-s', type=str, default='./scores')
 
-EQ_MARKER = '1'
-OPT_MARKER = '2'
+EQ_MARKER = '2'
+OPT_MARKER = '1'
 
 def load_scores(scores_dir: str, models: list[str]):
     scores = []
