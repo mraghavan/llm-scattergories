@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=10G
 #SBATCH --partition=cpu
-#SBATCH --array=0-39
+#SBATCH --array=0-49%30
 
 echo "Running script"
 # Run the Python script
