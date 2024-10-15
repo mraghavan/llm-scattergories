@@ -153,12 +153,15 @@ def build_completion_tree(prompt: str, engine: CompletionEngine, letter: str = '
             prob=1.0,
             max_temperature=engine.max_temperature)
     nodes = [root]
+    mass_discarded = 0.0
+    terminated = 0.0
     while nodes:
         node = nodes.pop(0)
         # print('Expanding node', node)
-        if node.depth == max_depth:
-            continue
         if len(node.tokens) > 0 and node.tokens[-1] == EOS_id:
+            terminated += node.prob
+            continue
+        if node.depth == max_depth:
             continue
         # slight optimization to only consider completions starting with the letter
         if len(node.tokens) > 0 and not node.text.strip().lower().startswith(letter.lower()):
@@ -170,6 +173,7 @@ def build_completion_tree(prompt: str, engine: CompletionEngine, letter: str = '
         probs = softmax_temperature(logits, engine.max_temperature)
         for token, prob, logit in zip(tokens, probs, logits):
             if prob * node.prob < engine.epsilon:
+                mass_discarded += prob * node.prob
                 continue
             # Consider using engine.tokenizer.eos_token_id somewhere
             token = int(token)
@@ -186,4 +190,6 @@ def build_completion_tree(prompt: str, engine: CompletionEngine, letter: str = '
             )
             node.add_child(child, logit)
             nodes.append(child)
+    print('[LOG] Mass discarded:', mass_discarded)
+    print('[LOG] Terminated:', terminated)
     return root
