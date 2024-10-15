@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=generate_trees
-#SBATCH --output=log_generate_trees_%j.out
-#SBATCH --error=log_generate_trees_%j.err
+#SBATCH --job-name=test_generate_trees
+#SBATCH --output=log_test_generate_trees_%j.out
+#SBATCH --error=log_test_generate_trees_%j.err
 #SBATCH --time=10:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
