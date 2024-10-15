@@ -16,6 +16,7 @@ parser.add_argument('--verifier', '-v', type=str, default='')
 parser.add_argument('--num_instances', '-n', type=int, default=20)
 parser.add_argument('--use_mlx', '-x', action='store_true', default=False)
 parser.add_argument('--output_dir', '-o', type=str, default='./trees')
+parser.add_argument('--depth', '-d', type=int, default=3)
 parser.add_argument('--job_num', '-j', type=int, default=0)
 parser.add_argument('--num_jobs', '-t', type=int, default=1)
 
@@ -86,7 +87,7 @@ def create_tree_if_necessary(
     else:
         prompt = get_scat_prompt(letter, category, engine.tokenizer)
         start = time.time()
-        tree = build_completion_tree(prompt, engine, letter, max_depth=3)
+        tree = build_completion_tree(prompt, engine, letter, max_depth=args.depth)
         elapsed = time.time() - start
         print(f'[LOG: TIME] Elapsed time for single tree {engine.nickname}: {elapsed:.2f} seconds')
         tree.standardize_tree()
