@@ -221,12 +221,9 @@ if __name__ == '__main__':
     ns = [1, 2, 3, 5, 10, 20, 35]
     all_jobs = get_all_jobs(models, ns, gammas)
     print('All jobs:', all_jobs)
-    filtered_jobs = [(model, n, gamma) for model, n, gamma in all_jobs if not os.path.exists(get_score_fname(output_dir, model, n, gamma))]
-    print(filtered_jobs)
-    print(len(filtered_jobs))
     job_num = args.job_num
     total_jobs = args.total_jobs
-    my_jobs = filtered_jobs[job_num::total_jobs]
+    my_jobs = all_jobs[job_num::total_jobs]
     print(f'Job {job_num+1} of {total_jobs}: {my_jobs}')
     print(len(my_jobs))
     loaded_models = {}
