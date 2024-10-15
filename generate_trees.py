@@ -165,7 +165,7 @@ if __name__ == '__main__':
                 else:
                     tree_map[(letter, category)].append(tree)
             continue
-        engine = CE.get_completion_engine(model_name, max_temperature=max_temperature, nickname=nickname)
+        engine = CE.get_completion_engine(model_name, max_temperature=max_temperature, nickname=nickname, epsilon=1e-5)
         for letter, category in instances:
             print(f'Model: {nickname}; Letter: {letter}; Category: {category}')
             tree = create_tree_if_necessary(args.output_dir, letter, category, max_temperature, engine)
