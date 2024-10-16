@@ -109,7 +109,7 @@ def generate_samples(
         category: str,
         temperature: float,
         num_samples: int,
-        cache: dict={},
+        cache: dict | None=None,
         max_tokens: int=6,
         batch_size: int=8,
         top_p: float = 0.95,
@@ -117,6 +117,8 @@ def generate_samples(
     allowed_tokens, allowed_starting_tokens = engine.get_allowed_tokens(letter)
     prompt = get_scat_prompt(letter, category, engine.tokenizer)
     tokenized_prompt = engine.encode_prompt(prompt)
+    if cache is None:
+        cache = {}
     c = Counter()
     unfinished = 0
     queue = []
@@ -187,8 +189,6 @@ def generate_samples(
         queue = next_queue
         log_probs = next_log_probs
     print(f'Unfinished samples: {unfinished}')
-    num_ones = sum(1 for _, v in c.items() if v == 1)
-    print('Good-Turing estimate:', num_ones / num_samples)
     print('Number of disctinct samples:', len(c))
     prob_mass = sum(prob_dict.values())
     print('Mass captured:', prob_mass)
