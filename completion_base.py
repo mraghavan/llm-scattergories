@@ -21,6 +21,23 @@ class CompletionEngine():
         self.top_p = top_p
         self.nickname = nickname
 
+    def get_allowed_tokens(self, letter: str) -> tuple[set, set]:
+        allowed_characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' + 'abcdefghijklmnopqrstuvwxyz' + ' ' + '0123456789'
+        allowed_characters = set(allowed_characters)
+        allowed_starting_tokens = set()
+        allowed_tokens = set()
+        allowed_tokens.add(self.tokenizer.eos_token_id)
+        vocabulary = list(self.tokenizer.get_vocab())
+        for token in vocabulary:
+            token_id = self.tokenizer.convert_tokens_to_ids(token)
+            token = self.tokenizer.decode(token_id)
+            # print(token_id, token)
+            if all(c in allowed_characters for c in token):
+                allowed_tokens.add(token_id)
+            if token_id in allowed_tokens and token.lower().lstrip().startswith(letter.lower()):
+                allowed_starting_tokens.add(token_id)
+        return allowed_tokens, allowed_starting_tokens
+
     def get_logits(self, prompt_tokens: list) -> tuple[np.ndarray, np.ndarray]:
         cache = None
         logits = self.get_logits_raw(prompt_tokens)
@@ -40,7 +57,10 @@ class CompletionEngine():
         np_logits = np.array(logits, copy=False)
         return tokens, np_logits[tokens]
 
-    def get_logits_raw(self, model_input) -> np.ndarray: ...
+    def get_logits_raw(self, model_input: list) -> np.ndarray: ...
+    # this method should be implemented by the subclass
+
+    def get_logits_raw_batch(self, model_input: list[list]) -> np.ndarray: ...
     # this method should be implemented by the subclass
 
     def encode_prompt(self, prompt: str) -> Union["torch.Tensor", "mlx.core.array"]: ...
@@ -124,6 +144,7 @@ class CompletionNode():
         for i in logits_argsort:
             yield from self.children[i].iter_leaves()
 
+
 def softmax_temperature(logits: np.ndarray, temperature: float):
     # numerically stable softmax
     if temperature == 0:
@@ -134,6 +155,18 @@ def softmax_temperature(logits: np.ndarray, temperature: float):
     logits -= np.max(logits)
     exp_logits = np.exp(logits, dtype=np.float64)
     probs = exp_logits / np.sum(exp_logits)
+    return probs
+
+def softmax_temperature_2d(logits: np.ndarray, temperature: float):
+    # logits shape: (batch_size, vocab_size)
+    if temperature == 0:
+        probs = np.zeros_like(logits)
+        probs[np.arange(logits.shape[0]), np.argmax(logits, axis=1)] = 1
+        return probs
+    logits = logits / temperature
+    logits[:, :] -= np.max(logits, axis=1)[:, None]
+    exp_logits = np.exp(logits, dtype=np.float64)
+    probs = exp_logits / np.sum(exp_logits, axis=1)[:, None]
     return probs
 
 def standardize_str(s: str, EOS_str: str) -> str:
