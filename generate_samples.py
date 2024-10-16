@@ -8,7 +8,7 @@ import re
 import pickle
 import random
 from collections import Counter
-from completion_base import build_completion_tree, CompletionEngine, CompletionNode, softmax_temperature
+from completion_base import build_completion_tree, CompletionEngine, CompletionNode, softmax_temperature, softmax_temperature_2d
 from scat_utils import get_scat_prompt, get_random_instances, standardize_str
 from verifier import Verifier
 import argparse
@@ -67,49 +67,121 @@ def generate_text(engine: CompletionEngine,
     print(np.exp(log_prob))
     return engine.tokenizer.decode(sampled_tokens), np.exp(log_prob), True
 
-def generate_samples(engine: CompletionEngine, letter: str, category: str, num_samples: int, max_tokens: int=6) -> dict:
-    # TODO try batching here
-    allowed_characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' + 'abcdefghijklmnopqrstuvwxyz' + ' ' + '0123456789'
-    allowed_characters = set(allowed_characters)
-    allowed_starting_tokens = set()
-    allowed_tokens = set()
-    allowed_tokens.add(engine.tokenizer.eos_token_id)
-    vocabulary = list(engine.tokenizer.get_vocab())
-    print(len(vocabulary))
-    print(vocabulary[:10])
-    for i, token in enumerate(vocabulary):
-        token_id = engine.tokenizer.convert_tokens_to_ids(token)
-        token = engine.tokenizer.decode(token_id)
-        # print(token_id, token)
-        if all(c in allowed_characters for c in token):
-            allowed_tokens.add(token_id)
-        if token_id in allowed_tokens and token.lower().lstrip().startswith(letter.lower()):
-            allowed_starting_tokens.add(token_id)
-    print('Number of allowed tokens:', len(allowed_tokens))
-    print('Number of allowed starting tokens:', len(allowed_starting_tokens))
+def get_new_sample_prefix(temperature: float, top_p: float, cache: dict) -> tuple[list[int], float]:
+    sample = ()
+    lp = 0.0
+    while sample in cache:
+        logits = cache[sample]
+        # both length 1
+        toks, log_probs = sample_from_logits(logits, temperature, top_p)
+        sample += tuple(toks)
+        lp += log_probs[0]
+    return list(sample), lp
+
+def sample_from_logits(logits: np.ndarray, temperature: float, top_p: float) -> tuple[list[int], list[float]]:
+    if len(logits.shape) == 1:
+        logits = logits[None]
+    probs = softmax_temperature_2d(logits, temperature)
+    sorted_indices = np.argsort(probs, axis=1)
+    sorted_probs = np.take_along_axis(probs, sorted_indices, axis=1)
+    # sorted_probs = probs[sorted_indices]
+    cumulative_probs = np.cumsum(sorted_probs, axis=1)
+    mask = np.array(cumulative_probs > 1 - top_p, copy=False)
+    tokens = []
+    log_probs = []
+    for i in range(logits.shape[0]):
+        masked_probs = sorted_probs[i, mask[i]]
+        new_prob_sum = np.sum(masked_probs)
+        masked_probs = masked_probs / new_prob_sum
+        masked_indices = sorted_indices[i, mask[i]]
+        r = np.arange(len(masked_probs))
+        index_of_index = random.choices(r, weights=masked_probs, k=1)[0]
+        prob = masked_probs[index_of_index]
+        token_index = masked_indices[index_of_index]
+        sampled_token = int(token_index)
+        tokens.append(sampled_token)
+        log_probs.append(np.log(prob))
+    return tokens, log_probs
+
+def generate_samples(engine: CompletionEngine, letter: str, category: str, temperature: float, num_samples: int, max_tokens: int=6, batch_size: int=8, top_p: float = 0.95) -> dict:
+    allowed_tokens, allowed_starting_tokens = engine.get_allowed_tokens(letter)
     cache = {}
     prompt = get_scat_prompt(letter, category, engine.tokenizer)
-    print(prompt)
     tokenized_prompt = engine.encode_prompt(prompt)
     c = Counter()
-    probs = {}
     unfinished = 0
-    for i in range(num_samples):
-        # print('Sample', i)
-        generated_text, prob, is_valid = generate_text(engine, tokenized_prompt, max_tokens, cache, allowed_tokens, allowed_starting_tokens)
-        if is_valid and generated_text and not generated_text.endswith(engine.tokenizer.eos_token):
-            unfinished += 1
-        generated_text = standardize_str(generated_text, engine.tokenizer.eos_token)
-        if generated_text not in probs:
-            probs[generated_text] = prob
-        if not is_valid:
-            generated_text = ''
-        c[generated_text] += 1
+    queue = []
+    log_probs = []
+    prob_dict = {}
+    seen = set()
+
+    def sample_complete(sample: list[int]) -> bool:
+        is_invalid = (len(sample) > 0 and sample[-1] not in allowed_tokens) or (len(sample) == 1 and sample[-1] not in allowed_starting_tokens)
+        too_long = len(sample) >= max_tokens
+        finished = len(sample) > 0 and sample[-1] == engine.tokenizer.eos_token_id
+        return finished or too_long or is_invalid
+
+    def process_response(sample: list[int], lp: float):
+        is_invalid = sample[-1] not in allowed_tokens or (len(sample) == 1 and sample[-1] not in allowed_starting_tokens)
+        too_long = len(sample) >= max_tokens
+        finished = sample[-1] == engine.tokenizer.eos_token_id
+        if finished or too_long or is_invalid:
+            generated_text = engine.tokenizer.decode(sample)
+            seen_before = generated_text in seen
+            seen.add(generated_text)
+            if too_long:
+                nonlocal unfinished
+                unfinished += 1
+            if is_invalid:
+                generated_text = ''
+            if finished or too_long:
+                generated_text = standardize_str(generated_text, engine.tokenizer.eos_token)
+            if not seen_before:
+                if generated_text not in prob_dict:
+                    prob_dict[generated_text] = np.exp(lp)
+                else:
+                    prob_dict[generated_text] += np.exp(lp)
+            c[generated_text] += 1
+
+    for _ in range(batch_size):
+        queue.append([])
+        log_probs.append(0.0)
+    while len(c) < num_samples and len(queue) > 0:
+        next_logits = engine.get_logits_raw_batch([tokenized_prompt + t for t in queue])
+        assert next_logits.shape[0] == len(queue)
+        for i, t in enumerate(queue):
+            tup = tuple(t)
+            if tup not in cache:
+                cache[tup] = next_logits[i]
+        new_tokens, new_log_probs = sample_from_logits(next_logits, temperature, top_p)
+        assert len(new_tokens) == len(queue)
+        for i, (tok, lp) in enumerate(zip(new_tokens, new_log_probs)):
+            queue[i].append(tok)
+            log_probs[i] += lp
+        # if any sample is finished, add it to c and replace it with a new sample
+        next_queue = []
+        next_log_probs = []
+        for t, lp in zip(queue, log_probs):
+            if sample_complete(t):
+                process_response(t, lp)
+                while sum(c.values()) + len(queue) <= num_samples:
+                    new_sample, new_lp = get_new_sample_prefix(temperature, top_p, cache)
+                    if sample_complete(new_sample):
+                        process_response(new_sample, new_lp)
+                    else:
+                        next_queue.append(new_sample)
+                        next_log_probs.append(new_lp)
+                        break
+            else:
+                next_queue.append(t)
+                next_log_probs.append(lp)
+        queue = next_queue
+        log_probs = next_log_probs
     print(f'Unfinished samples: {unfinished}')
     num_ones = sum(1 for _, v in c.items() if v == 1)
     print('Good-Turing estimate:', num_ones / num_samples)
     print('Number of disctinct samples:', len(c))
-    prob_mass = sum(probs.values())
+    prob_mass = sum(prob_dict.values())
     print('Mass captured:', prob_mass)
     info = {}
     info['letter'] = letter
@@ -118,8 +190,10 @@ def generate_samples(engine: CompletionEngine, letter: str, category: str, num_s
     info['unfinished'] = unfinished
     info['good_turing'] = num_ones / num_samples
     info['prob_mass'] = prob_mass
-    info['probs'] = probs
+    info['probs'] = prob_dict
     info['dist'] = c
+    print(c)
+    print(prob_dict)
     return info
 
 def get_sample_fname(output_dir: str, letter: str, category: str, model_name: str, temp: float) -> str:
@@ -139,14 +213,32 @@ if __name__ == '__main__':
     model_name = MODELS[nickname]
     max_temperature = MAX_TEMPS[model_name]
     engine = CE.get_completion_engine(model_name, max_temperature=max_temperature, nickname=nickname, epsilon=1e-5)
+    inputs = []
+    # for letter, category in get_random_instances(8):
+        # print('Getting logits for', letter, category)
+        # p = get_scat_prompt(letter, category, engine.tokenizer)
+        # inputs.append(engine.encode_prompt(p))
+    # engine.get_logits_raw_batch(inputs)
+
     random_instances = get_random_instances(args.num_instances)
     for letter, category in random_instances:
+        print('Generating', args.num_samples, 'samples for', letter, category, 'at temperature', max_temperature)
+        # TODO
+        # new logic
+        # open file if it exists
+        # check how many samples are already there. Skip if enough
+        # load cache if exists
+        # generate remaining samples
+        # save to file
+        # save cache
+        prompt = get_scat_prompt(letter, category, engine.tokenizer)
         start = time.time()
-        c = generate_samples(engine, letter, category, args.num_samples)
+        c = generate_samples(engine, letter, category, max_temperature, args.num_samples, batch_size = 4)
         elapsed = time.time() - start
         print(f'Elapsed time: {elapsed:.2f}')
-        print(c)
+        # print(c)
         fname = get_sample_fname(args.output_dir, letter, category, nickname, max_temperature)
         print('Saving to', fname)
         with open(fname, 'wb') as f:
             pickle.dump(c, f)
+            # TODO save cache
