@@ -22,6 +22,7 @@ parser.add_argument('--depth', '-d', type=int, default=3)
 parser.add_argument('--job_num', '-j', type=int, default=0)
 parser.add_argument('--num_jobs', '-t', type=int, default=1)
 parser.add_argument('--num_samples', '-s', type=int, default=100)
+parser.add_argument('--batch_size', '-b', type=int, default=4)
 
 # TODO move this
 from generate_trees import get_scat_prompt, get_model_list, MAX_TEMPS
@@ -236,7 +237,7 @@ if __name__ == '__main__':
         # save cache
         prompt = get_scat_prompt(letter, category, engine.tokenizer)
         start = time.time()
-        c = generate_samples(engine, letter, category, max_temperature, args.num_samples, batch_size = 4)
+        c = generate_samples(engine, letter, category, max_temperature, args.num_samples, batch_size = args.batch_size)
         elapsed = time.time() - start
         print(f'Elapsed time: {elapsed:.2f}')
         # print(c)
