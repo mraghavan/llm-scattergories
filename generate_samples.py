@@ -39,6 +39,7 @@ def generate_text(engine: CompletionEngine,
     while max_tokens > 0:
         max_tokens -= 1
         tup_tokens = tuple(sampled_tokens)
+        # TODO set top_p to 0 in the engine and do it here so we cache the full logits
         if tup_tokens in cache:
             tokens, logits = cache[tuple(tup_tokens)]
         else:
@@ -67,6 +68,7 @@ def generate_text(engine: CompletionEngine,
     return engine.tokenizer.decode(sampled_tokens), np.exp(log_prob), True
 
 def generate_samples(engine: CompletionEngine, letter: str, category: str, num_samples: int, max_tokens: int=6) -> dict:
+    # TODO try batching here
     allowed_characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' + 'abcdefghijklmnopqrstuvwxyz' + ' ' + '0123456789'
     allowed_characters = set(allowed_characters)
     allowed_starting_tokens = set()
@@ -90,19 +92,16 @@ def generate_samples(engine: CompletionEngine, letter: str, category: str, num_s
     print(prompt)
     tokenized_prompt = engine.encode_prompt(prompt)
     c = Counter()
-    seen = set()
+    probs = {}
     unfinished = 0
-    prob_mass = 0.0
     for i in range(num_samples):
         # print('Sample', i)
         generated_text, prob, is_valid = generate_text(engine, tokenized_prompt, max_tokens, cache, allowed_tokens, allowed_starting_tokens)
         if is_valid and generated_text and not generated_text.endswith(engine.tokenizer.eos_token):
             unfinished += 1
         generated_text = standardize_str(generated_text, engine.tokenizer.eos_token)
-        if generated_text not in seen:
-            seen.add(generated_text)
-            assert prob > 0
-            prob_mass += prob
+        if generated_text not in probs:
+            probs[generated_text] = prob
         if not is_valid:
             generated_text = ''
         c[generated_text] += 1
@@ -110,6 +109,7 @@ def generate_samples(engine: CompletionEngine, letter: str, category: str, num_s
     num_ones = sum(1 for _, v in c.items() if v == 1)
     print('Good-Turing estimate:', num_ones / num_samples)
     print('Number of disctinct samples:', len(c))
+    prob_mass = sum(probs.values())
     print('Mass captured:', prob_mass)
     info = {}
     info['letter'] = letter
@@ -118,6 +118,7 @@ def generate_samples(engine: CompletionEngine, letter: str, category: str, num_s
     info['unfinished'] = unfinished
     info['good_turing'] = num_ones / num_samples
     info['prob_mass'] = prob_mass
+    info['probs'] = probs
     info['dist'] = c
     return info
 
