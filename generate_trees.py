@@ -30,7 +30,7 @@ MAX_TEMPS = {
         'microsoft/Phi-3.5-mini-instruct': 2.6,
         'mistralai/Mistral-7B-Instruct-v0.3': 2.3,
         'nvidia/Nemotron-Mini-4B-Instruct': 2.3,
-        'nvidia/Mistral-NeMo-Minitron-8B-Instruct': 2.3,
+        'nvidia/Mistral-NeMo-Minitron-8B-Instruct': 1.9,
         'Qwen/Qwen2.5-7B-Instruct': 2.0,
         'mlx-community/Meta-Llama-3.1-8B-Instruct-8bit': 1.5,
         'mlx-community/Meta-Llama-3-8B-Instruct-8bit': 1.5,
