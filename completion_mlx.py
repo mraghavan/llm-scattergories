@@ -37,6 +37,13 @@ class CompletionEngineMLX(CompletionEngine):
         logits = np.array(logits)
         return logits
 
+    def get_logits_raw_batch(self, model_input: list[list]) -> np.ndarray:
+        # batch not implemented on mlx
+        all_logits = []
+        for l in model_input:
+            all_logits.append(self.get_logits_raw(l))
+        return np.array(all_logits)
+
     def encode_prompt(self, prompt: str) -> mx.array:
         return self.tokenizer.encode(prompt)
 
