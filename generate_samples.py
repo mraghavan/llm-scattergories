@@ -26,46 +26,46 @@ parser.add_argument('--num_samples', '-s', type=int, default=100)
 # TODO move this
 from generate_trees import get_scat_prompt, get_model_list, MAX_TEMPS
 
-def generate_text(engine: CompletionEngine,
-                  prompt_tokens: list,
-                  max_tokens: int,
-                  cache: dict,
-                  allowed_tokens: set,
-                  allowed_starting_tokens: set,
-                  ) -> tuple[str, float, bool]:
-    prompt_tokens = prompt_tokens.copy()
-    sampled_tokens = []
-    log_prob = 0.0
-    while max_tokens > 0:
-        max_tokens -= 1
-        tup_tokens = tuple(sampled_tokens)
-        # TODO set top_p to 0 in the engine and do it here so we cache the full logits
-        if tup_tokens in cache:
-            tokens, logits = cache[tuple(tup_tokens)]
-        else:
-            tokens, logits = engine.get_logits(prompt_tokens)
-            cache[tup_tokens] = (tokens, logits)
-        temperature = engine.max_temperature
-        probs = softmax_temperature(logits, temperature)
-        sampled_index = int(random.choices(range(len(probs)), weights=probs, k=1)[0])
-        sampled_token = int(tokens[sampled_index])
-        token_prob = probs[sampled_index]
-        log_prob += np.log(token_prob)
-        prompt_tokens.append(sampled_token)
-        sampled_tokens.append(sampled_token)
-        if len(sampled_tokens) == 1 and sampled_token not in allowed_starting_tokens:
-            st = engine.tokenizer.decode(sampled_token)
-            # print('Discarding starting token:', st)
-            return engine.tokenizer.decode(sampled_tokens), np.exp(log_prob), False
-        elif sampled_token not in allowed_tokens:
-            st = engine.tokenizer.decode(sampled_token)
-            # print('Discarding token:', st, sampled_token)
-            return engine.tokenizer.decode(sampled_tokens), np.exp(log_prob), False
-        if sampled_token == int(engine.tokenizer.eos_token_id):
-            break
-    print(engine.tokenizer.decode(sampled_tokens))
-    print(np.exp(log_prob))
-    return engine.tokenizer.decode(sampled_tokens), np.exp(log_prob), True
+# def generate_text(engine: CompletionEngine,
+                  # prompt_tokens: list,
+                  # max_tokens: int,
+                  # cache: dict,
+                  # allowed_tokens: set,
+                  # allowed_starting_tokens: set,
+                  # ) -> tuple[str, float, bool]:
+    # prompt_tokens = prompt_tokens.copy()
+    # sampled_tokens = []
+    # log_prob = 0.0
+    # while max_tokens > 0:
+        # max_tokens -= 1
+        # tup_tokens = tuple(sampled_tokens)
+        # # TODO set top_p to 0 in the engine and do it here so we cache the full logits
+        # if tup_tokens in cache:
+            # tokens, logits = cache[tuple(tup_tokens)]
+        # else:
+            # tokens, logits = engine.get_logits(prompt_tokens)
+            # cache[tup_tokens] = (tokens, logits)
+        # temperature = engine.max_temperature
+        # probs = softmax_temperature(logits, temperature)
+        # sampled_index = int(random.choices(range(len(probs)), weights=probs, k=1)[0])
+        # sampled_token = int(tokens[sampled_index])
+        # token_prob = probs[sampled_index]
+        # log_prob += np.log(token_prob)
+        # prompt_tokens.append(sampled_token)
+        # sampled_tokens.append(sampled_token)
+        # if len(sampled_tokens) == 1 and sampled_token not in allowed_starting_tokens:
+            # st = engine.tokenizer.decode(sampled_token)
+            # # print('Discarding starting token:', st)
+            # return engine.tokenizer.decode(sampled_tokens), np.exp(log_prob), False
+        # elif sampled_token not in allowed_tokens:
+            # st = engine.tokenizer.decode(sampled_token)
+            # # print('Discarding token:', st, sampled_token)
+            # return engine.tokenizer.decode(sampled_tokens), np.exp(log_prob), False
+        # if sampled_token == int(engine.tokenizer.eos_token_id):
+            # break
+    # print(engine.tokenizer.decode(sampled_tokens))
+    # print(np.exp(log_prob))
+    # return engine.tokenizer.decode(sampled_tokens), np.exp(log_prob), True
 
 def get_new_sample_prefix(temperature: float, top_p: float, cache: dict) -> tuple[list[int], float]:
     sample = ()
@@ -103,9 +103,18 @@ def sample_from_logits(logits: np.ndarray, temperature: float, top_p: float) -> 
         log_probs.append(np.log(prob))
     return tokens, log_probs
 
-def generate_samples(engine: CompletionEngine, letter: str, category: str, temperature: float, num_samples: int, max_tokens: int=6, batch_size: int=8, top_p: float = 0.95) -> dict:
+def generate_samples(
+        engine: CompletionEngine,
+        letter: str,
+        category: str,
+        temperature: float,
+        num_samples: int,
+        cache: dict={},
+        max_tokens: int=6,
+        batch_size: int=8,
+        top_p: float = 0.95,
+        ) -> dict:
     allowed_tokens, allowed_starting_tokens = engine.get_allowed_tokens(letter)
-    cache = {}
     prompt = get_scat_prompt(letter, category, engine.tokenizer)
     tokenized_prompt = engine.encode_prompt(prompt)
     c = Counter()
@@ -188,7 +197,6 @@ def generate_samples(engine: CompletionEngine, letter: str, category: str, tempe
     info['category'] = category
     info['num_samples'] = num_samples
     info['unfinished'] = unfinished
-    info['good_turing'] = num_ones / num_samples
     info['prob_mass'] = prob_mass
     info['probs'] = prob_dict
     info['dist'] = c
@@ -214,11 +222,6 @@ if __name__ == '__main__':
     max_temperature = MAX_TEMPS[model_name]
     engine = CE.get_completion_engine(model_name, max_temperature=max_temperature, nickname=nickname, epsilon=1e-5)
     inputs = []
-    # for letter, category in get_random_instances(8):
-        # print('Getting logits for', letter, category)
-        # p = get_scat_prompt(letter, category, engine.tokenizer)
-        # inputs.append(engine.encode_prompt(p))
-    # engine.get_logits_raw_batch(inputs)
 
     random_instances = get_random_instances(args.num_instances)
     for letter, category in random_instances:
