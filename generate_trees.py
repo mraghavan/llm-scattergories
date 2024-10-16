@@ -80,6 +80,7 @@ def create_tree_if_necessary(
         max_temperature: float,
         engine: CompletionEngine) -> CompletionNode:
     fname = get_pickle_filename(tree_dir, letter, category, max_temperature, engine.nickname)
+    # TODO get rid of max_temperature
     if os.path.exists(fname):
         print('Tree already exists')
         with open(fname, 'rb') as f:
