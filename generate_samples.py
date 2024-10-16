@@ -126,6 +126,7 @@ def generate_samples(
     log_probs = []
     prob_dict = {}
     seen = set()
+    print('Batch size:', batch_size)
 
     def sample_complete(sample: list[int]) -> bool:
         is_invalid = (len(sample) > 0 and sample[-1] not in allowed_tokens) or (len(sample) == 1 and sample[-1] not in allowed_starting_tokens)
