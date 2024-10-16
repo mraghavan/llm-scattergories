@@ -225,6 +225,7 @@ if __name__ == '__main__':
     engine = CE.get_completion_engine(model_name, max_temperature=max_temperature, nickname=nickname, epsilon=1e-5)
     inputs = []
 
+    random.seed(0)
     random_instances = get_random_instances(args.num_instances)
     for letter, category in random_instances:
         print('Generating', args.num_samples, 'samples for', letter, category, 'at temperature', max_temperature)
