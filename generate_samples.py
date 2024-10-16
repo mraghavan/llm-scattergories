@@ -54,11 +54,11 @@ def generate_text(engine: CompletionEngine,
         sampled_tokens.append(sampled_token)
         if len(sampled_tokens) == 1 and sampled_token not in allowed_starting_tokens:
             st = engine.tokenizer.decode(sampled_token)
-            print('Discarding starting token:', st)
+            # print('Discarding starting token:', st)
             return engine.tokenizer.decode(sampled_tokens), np.exp(log_prob), False
         elif sampled_token not in allowed_tokens:
             st = engine.tokenizer.decode(sampled_token)
-            print('Discarding token:', st, sampled_token)
+            # print('Discarding token:', st, sampled_token)
             return engine.tokenizer.decode(sampled_tokens), np.exp(log_prob), False
         if sampled_token == int(engine.tokenizer.eos_token_id):
             break
@@ -94,7 +94,7 @@ def generate_samples(engine: CompletionEngine, letter: str, category: str, num_s
     unfinished = 0
     prob_mass = 0.0
     for i in range(num_samples):
-        print('Sample', i)
+        # print('Sample', i)
         generated_text, prob, is_valid = generate_text(engine, tokenized_prompt, max_tokens, cache, allowed_tokens, allowed_starting_tokens)
         if is_valid and generated_text and not generated_text.endswith(engine.tokenizer.eos_token):
             unfinished += 1
@@ -110,6 +110,7 @@ def generate_samples(engine: CompletionEngine, letter: str, category: str, num_s
     num_ones = sum(1 for _, v in c.items() if v == 1)
     print('Good-Turing estimate:', num_ones / num_samples)
     print('Number of disctinct samples:', len(c))
+    print('Mass captured:', prob_mass)
     info = {}
     info['letter'] = letter
     info['category'] = category
