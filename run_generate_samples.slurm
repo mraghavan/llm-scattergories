@@ -17,6 +17,6 @@ export HF_TOKEN=$(cat ~/.HF_TOKEN)
 
 echo "Running script"
 # Run the Python script
-for b in {2 4 8 16}; do
+for b in 2 4 8 16; do
     time python3 generate_samples.py -m nemotron -n 5 -s 10000 -b $b
 done
