@@ -18,6 +18,11 @@ MODELS = {
         # 'qwen2.5': 'Qwen/Qwen2.5-7B-Instruct', # (similar to mistral, don't need both)
           }
 
+LOW_PRECISION_MODELS = {
+        'llama3',
+        'llama3.1',
+        }
+
 
 class CompletionEngineHF(CompletionEngine):
     DEVICE = None
@@ -31,12 +36,17 @@ class CompletionEngineHF(CompletionEngine):
             ) -> 'CompletionEngine':
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         if torch.cuda.is_available():
-            model = AutoModelForCausalLM.from_pretrained(
-                model_name,
-                load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.float16,
-                # torch_dtype=torch.float16
-            )
+            if model_name in LOW_PRECISION_MODELS:
+                model = AutoModelForCausalLM.from_pretrained(
+                    model_name,
+                    load_in_4bit=True,
+                    bnb_4bit_compute_dtype=torch.float16,
+                )
+            else:
+                model = AutoModelForCausalLM.from_pretrained(
+                    model_name,
+                    torch_dtype=torch.float16,
+                    )
         else:
             # For some reason half precision doesn't work on CPU
             model = AutoModelForCausalLM.from_pretrained(
