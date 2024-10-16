@@ -53,6 +53,10 @@ class CompletionEngineHF(CompletionEngine):
             device = torch.device("cpu")
         model.to(device)
         CompletionEngineHF.DEVICE = device
+        print('Current pad token', self.tokenizer.pad_token)
+        if not self.tokenizer.pad_token:
+            self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+            self.model.resize_token_embeddings(len(self.tokenizer))
 
     def get_logits_raw(self, model_input: list):
         # TODO speed up by batching
@@ -63,6 +67,33 @@ class CompletionEngineHF(CompletionEngine):
         logits = logits[:, -1, :]
         logits = logits.squeeze(0).to('cpu')
         logits = np.array(logits) # shape: (vocab_size,)
+        return logits
+
+    def get_logits_raw_batch(self, model_input: list[list]) -> np.ndarray:
+        max_len = max(len(x) for x in model_input)
+        padded_model_inputs = []
+        attention_mask = []
+        idxs = []
+        for x in model_input:
+            if self.tokenizer.padding_side == 'right':
+                idxs.append(len(x) - 1)
+                x = x + [self.tokenizer.pad_token_id] * (max_len - len(x))
+                attention_mask.append([1] * len(x) + [0] * (max_len - len(x)))
+            elif self.tokenizer.padding_side == 'left':
+                x = [self.tokenizer.pad_token_id] * (max_len - len(x)) + x
+                attention_mask.append([0] * (max_len - len(x)) + [1] * len(x))
+                idxs.append(max_len - 1)
+            else:
+                raise ValueError('padding_side must be left or right')
+            padded_model_inputs.append(x)
+
+        torch_input = torch.tensor(padded_model_inputs).to(self.DEVICE)
+        torch_attention_mask = torch.tensor(attention_mask).to(self.DEVICE)
+        idxs = np.array(idxs)
+        with torch.no_grad():
+            outputs = self.model(input_ids = torch_input, use_cache=False, attention_mask=torch_attention_mask)
+        logits = outputs.logits[np.arange(len(model_input)), idxs, :]
+        logits = np.array(logits.to('cpu'))
         return logits
 
     def encode_prompt(self, prompt: str):
