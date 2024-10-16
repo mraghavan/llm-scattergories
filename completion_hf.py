@@ -51,12 +51,12 @@ class CompletionEngineHF(CompletionEngine):
         else:
             print("GPU is not available. Using CPU.")
             device = torch.device("cpu")
-        model.to(device)
-        CompletionEngineHF.DEVICE = device
         print('Current pad token', self.tokenizer.pad_token)
         if not self.tokenizer.pad_token:
             self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
             self.model.resize_token_embeddings(len(self.tokenizer))
+        model.to(device)
+        CompletionEngineHF.DEVICE = device
 
     def get_logits_raw(self, model_input: list):
         # TODO speed up by batching
