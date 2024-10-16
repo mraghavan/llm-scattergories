@@ -122,16 +122,15 @@ def generate_samples(engine: CompletionEngine, letter: str, category: str, num_s
     info['dist'] = c
     return info
 
-def get_sample_fname(output_dir: str, letter: str, category: str, model_name: str, temp: float, job_num: int, jobs: int):
+def get_sample_fname(output_dir: str, letter: str, category: str, model_name: str, temp: float) -> str:
     category = re.sub('[^a-zA-Z0-9 ]+', '', category)
     category = re.sub(' ', '_', category)
-    return f'{output_dir}/{letter}_{category}_{model_name}_{temp}_{job_num}_{jobs}.pkl'
+    return f'{output_dir}/{letter}_{category}_{model_name}_{temp}.pkl'
 
 if __name__ == '__main__':
     args = parser.parse_args()
     if args.use_mlx:
         from completion_mlx import CompletionEngineMLX as CE, MODELS
-        import mlx.core as mx
     else:
         from completion_hf import CompletionEngineHF as CE, MODELS
     models = get_model_list(args.models, set(MODELS.keys()))
@@ -147,7 +146,7 @@ if __name__ == '__main__':
         elapsed = time.time() - start
         print(f'Elapsed time: {elapsed:.2f}')
         print(c)
-        fname = get_sample_fname(args.output_dir, letter, category, nickname, max_temperature, args.job_num, args.num_jobs)
+        fname = get_sample_fname(args.output_dir, letter, category, nickname, max_temperature)
         print('Saving to', fname)
         with open(fname, 'wb') as f:
             pickle.dump(c, f)
