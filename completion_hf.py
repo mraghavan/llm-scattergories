@@ -33,7 +33,8 @@ class CompletionEngineHF(CompletionEngine):
         if torch.cuda.is_available():
             model = AutoModelForCausalLM.from_pretrained(
                 model_name,
-                torch_dtype=torch.float16
+                load_in_4bit=True,
+                # torch_dtype=torch.float16
             )
         else:
             # For some reason half precision doesn't work on CPU
