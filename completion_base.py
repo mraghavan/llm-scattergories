@@ -21,7 +21,7 @@ class CompletionEngine():
         self.top_p = top_p
         self.nickname = nickname
 
-    def get_logits(self, prompt_tokens: list) -> tuple[ArrayLike, ArrayLike]:
+    def get_logits(self, prompt_tokens: list) -> tuple[np.ndarray, np.ndarray]:
         cache = None
         logits = self.get_logits_raw(prompt_tokens)
         if self.max_temperature == 0:
