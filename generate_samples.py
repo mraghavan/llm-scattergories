@@ -188,10 +188,10 @@ def generate_samples(
                 next_log_probs.append(lp)
         queue = next_queue
         log_probs = next_log_probs
-    print(f'Unfinished samples: {unfinished}')
-    print('Number of disctinct samples:', len(c))
+    # print(f'Unfinished samples: {unfinished}')
+    # print('Number of disctinct samples:', len(c))
     prob_mass = sum(prob_dict.values())
-    print('Mass captured:', prob_mass)
+    # print('Mass captured:', prob_mass)
     info = {}
     info['letter'] = letter
     info['category'] = category
@@ -200,8 +200,8 @@ def generate_samples(
     info['prob_mass'] = prob_mass
     info['probs'] = prob_dict
     info['dist'] = c
-    print(c)
-    print(prob_dict)
+    # print(c)
+    # print(prob_dict)
     return info
 
 def get_sample_fname(output_dir: str, letter: str, category: str, model_name: str, temp: float) -> str:
