@@ -34,6 +34,7 @@ class CompletionEngineHF(CompletionEngine):
             model = AutoModelForCausalLM.from_pretrained(
                 model_name,
                 load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch.float16,
                 # torch_dtype=torch.float16
             )
         else:
