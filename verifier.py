@@ -7,6 +7,7 @@ class Verifier():
         self.engine = CEClass.get_completion_engine(model_name, max_temperature=0, nickname=nickname)
 
     def verify(self, answer: str, category: str, letter: str):
+        # TODO batch this
         if not answer.lower().startswith(letter.lower()):
             return False
         if answer.lower().startswith(letter.lower() + ' '):
