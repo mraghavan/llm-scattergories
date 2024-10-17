@@ -104,8 +104,8 @@ class CompletionEngineHF(CompletionEngine):
         idxs = np.array(idxs)
         with torch.no_grad():
             outputs = self.model(input_ids = torch_input, use_cache=False, attention_mask=torch_attention_mask)
-        logits = outputs.logits[np.arange(len(model_input)), idxs, :]
-        logits = np.array(logits.to('cpu'))
+        logits = np.array(outputs.logits.to('cpu'))
+        logits = logits[np.arange(len(model_input)), idxs, :]
         return logits
 
     def encode_prompt(self, prompt: str):
