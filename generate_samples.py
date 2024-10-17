@@ -190,7 +190,7 @@ def generate_samples(
                 next_log_probs.append(lp)
         queue = next_queue
         log_probs = next_log_probs
-    # print(f'Unfinished samples: {unfinished}')
+    print(f'Unfinished samples: {unfinished}')
     # print('Number of disctinct samples:', len(c))
     prob_mass = sum(prob_dict.values())
     # print('Mass captured:', prob_mass)
