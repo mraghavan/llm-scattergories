@@ -8,10 +8,12 @@ class Verifier():
 
     def verify(self, answer: str, category: str, letter: str):
         # TODO batch this
+        if answer == '':
+            return False
         if not answer.lower().startswith(letter.lower()):
             return False
-        if answer.lower().startswith(letter.lower() + ' '):
-            return False
+        # if answer.lower().startswith(letter.lower() + ' '):
+            # return False
         prompt = get_eval_prompt(answer, category, self.engine.tokenizer)
         prompt_tokens = self.engine.encode_prompt(prompt)
         tokens, _ = self.engine.get_logits(prompt_tokens)
