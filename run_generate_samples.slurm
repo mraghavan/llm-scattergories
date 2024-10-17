@@ -20,4 +20,4 @@ echo "Running script"
 #time python3 generate_samples.py -m llama3 -n 1 -s 100 -b 16
 for b in 6 16; do
     time python3 generate_samples.py -m nemotron -n 10 -s 500 -b $b
-#done
+done
