@@ -24,17 +24,17 @@ MAX_TEMPS = {
         'meta-llama/Meta-Llama-3-8B-Instruct': 2.5,
         'meta-llama/Llama-3.1-8B-Instruct': 2.5,
         'meta-llama/Llama-3.2-1B-Instruct': 2.0,
-        'HuggingFaceTB/SmolLM-1.7B-Instruct': 1.0,
+        'HuggingFaceTB/SmolLM-1.7B-Instruct': 1.2,
         'Qwen/Qwen2-7B': 1.5,
         'google/gemma-2-2b-it': 1.5,
         'microsoft/Phi-3.5-mini-instruct': 1.5,
         'mistralai/Mistral-7B-Instruct-v0.3': 2.3,
-        'nvidia/Nemotron-Mini-4B-Instruct': 1.0,
-        'nvidia/Mistral-NeMo-Minitron-8B-Instruct': 1.9,
+        'nvidia/Nemotron-Mini-4B-Instruct': 1.5,
+        # 'nvidia/Mistral-NeMo-Minitron-8B-Instruct': 1.9, # (too big for gpu)
         'Qwen/Qwen2.5-7B-Instruct': 2.0,
         'mlx-community/Meta-Llama-3.1-8B-Instruct-8bit': 1.5,
         'mlx-community/Meta-Llama-3-8B-Instruct-8bit': 1.5,
-        # 'gemma2': 'mlx-community/gemma-2-9b-8bit', (not an instruct mocdel)
+        # 'gemma2': 'mlx-community/gemma-2-9b-8bit', (not an instruct model)
         'mlx-community/Qwen1.5-7B-Chat-4bit': 1.5,
         # 'openelm1_1': 'mlx-community/OpenELM-1_1B-Instruct-8bit', (no chat template)
         'mlx-community/SmolLM-1.7B-Instruct-fp16': 1.5,
