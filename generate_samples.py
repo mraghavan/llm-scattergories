@@ -188,7 +188,7 @@ def generate_samples(
                 nonlocal unfinished
                 unfinished += 1
             if is_invalid:
-                generated_text = ''
+                generated_text = engine.tokenizer.decode(sample[:-1])
             if finished or too_long:
                 generated_text = standardize_str(generated_text, engine.tokenizer.eos_token)
             c[generated_text] += 1
