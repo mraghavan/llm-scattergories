@@ -1,4 +1,5 @@
 import time
+import re
 import os
 import pickle
 import random
@@ -16,6 +17,7 @@ parser.add_argument('--input_dir', '-i', type=str, default='./samples')
 parser.add_argument('--output_dir', '-o', type=str, default='./samples')
 
 def get_v_fname(output_dir: str, letter: str, category: str, v_name: str) -> str:
+    category = re.sub('[^a-zA-Z0-9 ]+', '', category)
     return os.path.join(output_dir, f'{letter}_{category}_{v_name}_verified.pkl')
 
 if __name__ == '__main__':
