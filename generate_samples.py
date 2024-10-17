@@ -25,6 +25,23 @@ parser.add_argument('--num_samples', '-s', type=int, default=100)
 parser.add_argument('--batch_size', '-b', type=int, default=4)
 
 EPS_GRID = 0.1
+LARGE_TEMP = 3.0
+LARGE_P = 0.99
+
+class SortedLogitsAndTokens():
+    # Necessary to optimize cache. Otherwise, nemotron needs ~1MB per sample
+    def __init__(self, logits: np.ndarray):
+        # logits is 1D
+        # guarantee that logits are sorted in increasing order
+        probs_at_large_temp = softmax_temperature(logits, LARGE_TEMP)
+        sorted_indices = np.argsort(probs_at_large_temp)
+        sorted_probs = probs_at_large_temp[sorted_indices]
+        # sorted_probs = probs[sorted_indices]
+        cumulative_probs = np.cumsum(sorted_probs)
+        mask = np.array(cumulative_probs > 1 - LARGE_P, copy=False)
+        self.tokens = np.array(sorted_indices[mask], copy=True)
+        self.logits = np.array(logits[self.tokens], copy=True)
+        print('Size reduction:', logits.size, '->', self.tokens.size, '(', self.tokens.size / logits.size, ')')
 
 # TODO move this
 from generate_trees import get_scat_prompt, get_model_list, MAX_TEMPS
@@ -70,16 +87,29 @@ from generate_trees import get_scat_prompt, get_model_list, MAX_TEMPS
     # print(np.exp(log_prob))
     # return engine.tokenizer.decode(sampled_tokens), np.exp(log_prob), True
 
-def get_new_sample_prefix(temperature: float, top_p: float, cache: dict) -> tuple[list[int], float]:
+def get_new_sample_prefix(temperature: float, top_p: float, cache: dict[tuple, SortedLogitsAndTokens]) -> tuple[list[int], float]:
     sample = ()
     lp = 0.0
     while sample in cache:
-        logits = cache[sample]
+        logits_and_tokens = cache[sample]
         # both length 1
-        toks, log_probs = sample_from_logits(logits, temperature, top_p)
-        sample += tuple(toks)
-        lp += log_probs[0]
+        tok, log_prob = sample_from_sorted_logits(logits_and_tokens, temperature, top_p)
+        sample += (tok,)
+        lp += log_prob
     return list(sample), lp
+
+def sample_from_sorted_logits(sorted_logits: SortedLogitsAndTokens, temp: float, top_p: float) -> tuple[int, float]:
+    logits = sorted_logits.logits
+    tokens = sorted_logits.tokens
+    probs = softmax_temperature(logits, temp)
+    cumulative_probs = np.cumsum(probs)
+    mask = np.array(cumulative_probs > 1 - top_p)
+    masked_probs = probs[mask]
+    masked_probs = masked_probs / np.sum(masked_probs)
+    sampled_index = random.choices(np.arange(len(masked_probs)), weights=masked_probs, k=1)[0]
+    sampled_prob = masked_probs[sampled_index]
+    sampled_token = tokens[mask][sampled_index]
+    return int(sampled_token), np.log(sampled_prob)
 
 def sample_from_logits(logits: np.ndarray, temperature: float, top_p: float) -> tuple[list[int], list[float]]:
     if len(logits.shape) == 1:
@@ -112,7 +142,7 @@ def generate_samples(
         category: str,
         temperature: float,
         num_samples: int,
-        cache: dict | None=None,
+        cache: dict[tuple, SortedLogitsAndTokens] | None=None,
         existing_info: dict | None=None,
         max_tokens: int=6,
         batch_size: int=8,
@@ -129,12 +159,10 @@ def generate_samples(
         c = existing_info['dist']
         prob_dict = existing_info['probs']
         unfinished = existing_info['unfinished']
-        num_remaining = num_samples - sum(c.values())
     else:
         c = Counter()
         prob_dict = {}
         unfinished = 0
-        num_remaining = num_samples
 
     queue = []
     log_probs = []
@@ -175,11 +203,17 @@ def generate_samples(
     while len(c) < num_samples and len(queue) > 0:
         next_logits = engine.get_logits_raw_batch([tokenized_prompt + t for t in queue])
         assert next_logits.shape[0] == len(queue)
+        sorted_logits_list = [SortedLogitsAndTokens(logits) for logits in next_logits]
+        new_tokens = []
+        new_log_probs = []
         for i, t in enumerate(queue):
             tup = tuple(t)
-            if tup not in cache:
-                cache[tup] = next_logits[i]
-        new_tokens, new_log_probs = sample_from_logits(next_logits, temperature, top_p)
+            # only cache if there's a 1% chance of sampling it again
+            if tup not in cache and np.exp(log_probs[i]) > 0.01:
+                cache[tup] = sorted_logits_list[i]
+            new_token, new_log_prob = sample_from_sorted_logits(sorted_logits_list[i], temperature, top_p)
+            new_tokens.append(new_token)
+            new_log_probs.append(new_log_prob)
         assert len(new_tokens) == len(queue)
         for i, (tok, lp) in enumerate(zip(new_tokens, new_log_probs)):
             queue[i].append(tok)
