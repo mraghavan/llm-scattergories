@@ -86,16 +86,16 @@ def get_eq(scores: np.ndarray, temps: list[float]):
     return info
 
 def get_score(verified_yes: dict, answer1: str, answers2: list[str], gamma: float=1.0) -> float:
-    # TODO make this in expectation
-    # Pr[exactly k red balls sampling without replacement]
-    # comb(num_red, k) * comb(N - num_red, n-1-k) / comb(N, n-1)
-    # sum k from 0 to n-1
+    # Use the faster version instead
     if answer1 not in verified_yes:
         return 0.0
     others_same = sum(1 for a2 in answers2 if answer1 == a2)
     return (1 + others_same) **(-gamma)
 
 def get_score_faster(verified_yes: dict, answer1: str, answers2: Counter, n: int, same: bool=False, gamma: float=1.0) -> float:
+    # Pr[exactly k red balls sampling without replacement]
+    # comb(num_red, k) * comb(N - num_red, n-1-k) / comb(N, n-1)
+    # sum k from 0 to n-1
     if answer1 not in verified_yes:
         return 0.0
     if answer1 not in answers2:
