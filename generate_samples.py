@@ -172,9 +172,6 @@ def generate_samples(
         else:
             queue.append(new_sample)
             log_probs.append(new_lp)
-    # for _ in range(batch_size):
-        # queue.append([])
-        # log_probs.append(0.0)
     while len(c) < num_samples and len(queue) > 0:
         next_logits = engine.get_logits_raw_batch([tokenized_prompt + t for t in queue])
         assert next_logits.shape[0] == len(queue)
