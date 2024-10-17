@@ -274,8 +274,7 @@ if __name__ == '__main__':
     models = get_model_list(args.models, set(MODELS.keys()))
     random.seed(0)
     random_instances = get_random_instances(args.num_instances)
-    for model in models:
-        nickname = models[0]
+    for nickname in models:
         print('Model:', nickname)
         model_name = MODELS[nickname]
         max_temperature = MAX_TEMPS[model_name]
