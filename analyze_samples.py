@@ -26,7 +26,7 @@ def get_info_fname(output_dir: str, model: str, n: int, gamma: float) -> str:
 
 def get_eq(scores: np.ndarray, temps: list[float]):
     # scores[0, :] += 0.0000001
-    print('Scores: ', scores)
+    # print('Scores: ', scores)
     info = {}
     eq_inds = []
     max_indices = np.argmax(scores, axis=0)
