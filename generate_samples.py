@@ -24,6 +24,8 @@ parser.add_argument('--num_jobs', '-t', type=int, default=1)
 parser.add_argument('--num_samples', '-s', type=int, default=100)
 parser.add_argument('--batch_size', '-b', type=int, default=4)
 
+EPS_GRID = 0.1
+
 # TODO move this
 from generate_trees import get_scat_prompt, get_model_list, MAX_TEMPS
 
@@ -111,6 +113,7 @@ def generate_samples(
         temperature: float,
         num_samples: int,
         cache: dict | None=None,
+        existing_info: dict | None=None,
         max_tokens: int=6,
         batch_size: int=8,
         top_p: float = 0.95,
@@ -118,14 +121,24 @@ def generate_samples(
     allowed_tokens, allowed_starting_tokens = engine.get_allowed_tokens(letter)
     prompt = get_scat_prompt(letter, category, engine.tokenizer)
     tokenized_prompt = engine.encode_prompt(prompt)
+
     if cache is None:
         cache = {}
-    c = Counter()
-    unfinished = 0
+
+    if existing_info is not None:
+        c = existing_info['dist']
+        prob_dict = existing_info['probs']
+        unfinished = existing_info['unfinished']
+        num_remaining = num_samples - sum(c.values())
+    else:
+        c = Counter()
+        prob_dict = {}
+        unfinished = 0
+        num_remaining = num_samples
+
     queue = []
     log_probs = []
     prob_dict = {}
-    seen = set()
     print('Batch size:', batch_size)
 
     def sample_complete(sample: list[int]) -> bool:
@@ -140,8 +153,9 @@ def generate_samples(
         finished = sample[-1] == engine.tokenizer.eos_token_id
         if finished or too_long or is_invalid:
             generated_text = engine.tokenizer.decode(sample)
-            seen_before = generated_text in seen
-            seen.add(generated_text)
+            seen_before = generated_text in prob_dict
+            if not seen_before:
+                prob_dict[generated_text] = np.exp(lp)
             if too_long:
                 nonlocal unfinished
                 unfinished += 1
@@ -149,16 +163,18 @@ def generate_samples(
                 generated_text = ''
             if finished or too_long:
                 generated_text = standardize_str(generated_text, engine.tokenizer.eos_token)
-            if not seen_before:
-                if generated_text not in prob_dict:
-                    prob_dict[generated_text] = np.exp(lp)
-                else:
-                    prob_dict[generated_text] += np.exp(lp)
             c[generated_text] += 1
 
-    for _ in range(batch_size):
-        queue.append([])
-        log_probs.append(0.0)
+    while len(queue) < batch_size and sum(c.values()) + len(queue) < num_samples:
+        new_sample, new_lp = get_new_sample_prefix(temperature, top_p, cache)
+        if sample_complete(new_sample):
+            process_response(new_sample, new_lp)
+        else:
+            queue.append(new_sample)
+            log_probs.append(new_lp)
+    # for _ in range(batch_size):
+        # queue.append([])
+        # log_probs.append(0.0)
     while len(c) < num_samples and len(queue) > 0:
         next_logits = engine.get_logits_raw_batch([tokenized_prompt + t for t in queue])
         assert next_logits.shape[0] == len(queue)
@@ -193,7 +209,7 @@ def generate_samples(
     print(f'Unfinished samples: {unfinished}')
     # print('Number of disctinct samples:', len(c))
     prob_mass = sum(prob_dict.values())
-    # print('Mass captured:', prob_mass)
+    print('Mass captured:', prob_mass)
     info = {}
     info['letter'] = letter
     info['category'] = category
@@ -202,14 +218,18 @@ def generate_samples(
     info['prob_mass'] = prob_mass
     info['probs'] = prob_dict
     info['dist'] = c
-    # print(c)
     # print(prob_dict)
     return info
 
 def get_sample_fname(output_dir: str, letter: str, category: str, model_name: str, temp: float) -> str:
     category = re.sub('[^a-zA-Z0-9 ]+', '', category)
     category = re.sub(' ', '_', category)
-    return f'{output_dir}/{letter}_{category}_{model_name}_{temp}.pkl'
+    return f'{output_dir}/{letter}_{category}_{model_name}_{temp}_samples.pkl'
+
+def get_cache_fname(output_dir: str, letter: str, category: str, model_name: str) -> str:
+    category = re.sub('[^a-zA-Z0-9 ]+', '', category)
+    category = re.sub(' ', '_', category)
+    return f'{output_dir}/{letter}_{category}_{model_name}_cache.pkl'
 
 if __name__ == '__main__':
     args = parser.parse_args()
@@ -222,29 +242,37 @@ if __name__ == '__main__':
     print('Model:', nickname)
     model_name = MODELS[nickname]
     max_temperature = MAX_TEMPS[model_name]
-    engine = CE.get_completion_engine(model_name, max_temperature=max_temperature, nickname=nickname, epsilon=1e-5)
-    inputs = []
+    engine = CE.get_completion_engine(model_name, max_temperature=max_temperature, nickname=nickname, epsilon=0)
 
     random.seed(0)
     random_instances = get_random_instances(args.num_instances)
+    temps = np.arange(0, max_temperature + EPS_GRID, EPS_GRID)
     for letter, category in random_instances:
-        print('Generating', args.num_samples, 'samples for', letter, category, 'at temperature', max_temperature)
-        # TODO
-        # new logic
-        # open file if it exists
-        # check how many samples are already there. Skip if enough
-        # load cache if exists
-        # generate remaining samples
-        # save to file
-        # save cache
-        prompt = get_scat_prompt(letter, category, engine.tokenizer)
-        start = time.time()
-        c = generate_samples(engine, letter, category, max_temperature, args.num_samples, batch_size = args.batch_size)
-        elapsed = time.time() - start
-        print(f'Elapsed time: {elapsed:.2f}')
-        # print(c)
-        fname = get_sample_fname(args.output_dir, letter, category, nickname, max_temperature)
-        print('Saving to', fname)
-        with open(fname, 'wb') as f:
-            pickle.dump(c, f)
-            # TODO save cache
+        cache_fname = get_cache_fname(args.output_dir, letter, category, nickname)
+        if os.path.exists(cache_fname):
+            with open(cache_fname, 'rb') as f:
+                cache = pickle.load(f)
+        else:
+            cache = {}
+        for temp in temps:
+            temp = round(temp, 3)
+            print('Generating', args.num_samples, 'samples for', letter, category, 'at temperature', temp)
+            fname = get_sample_fname(args.output_dir, letter, category, nickname, temp)
+            if os.path.exists(fname):
+                existing_info = pickle.load(open(fname, 'rb'))
+            else:
+                existing_info = None
+            if existing_info and existing_info['num_samples'] >= args.num_samples:
+                print('Already have enough samples for', letter, category, 'at temperature', temp)
+                continue
+            prompt = get_scat_prompt(letter, category, engine.tokenizer)
+            start = time.time()
+            info = generate_samples(engine, letter, category, temp, args.num_samples, batch_size = args.batch_size, cache=cache, existing_info=existing_info)
+            elapsed = time.time() - start
+            print(f'Elapsed time: {elapsed:.2f}')
+            print('Saving to', fname)
+            with open(fname, 'wb') as f:
+                pickle.dump(info, f)
+            print('Saving cache to', cache_fname)
+            with open(cache_fname, 'wb') as f:
+                pickle.dump(cache, f)
