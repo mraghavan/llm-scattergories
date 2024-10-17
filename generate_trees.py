@@ -23,12 +23,12 @@ parser.add_argument('--num_jobs', '-t', type=int, default=1)
 MAX_TEMPS = {
         'meta-llama/Meta-Llama-3-8B-Instruct': 2.5,
         'meta-llama/Llama-3.1-8B-Instruct': 2.5,
-        'meta-llama/Llama-3.2-1B-Instruct': 2.0,
+        'meta-llama/Llama-3.2-1B-Instruct': 1.5,
         'HuggingFaceTB/SmolLM-1.7B-Instruct': 1.2,
         'Qwen/Qwen2-7B': 1.5,
         'google/gemma-2-2b-it': 1.5,
         'microsoft/Phi-3.5-mini-instruct': 1.9,
-        'mistralai/Mistral-7B-Instruct-v0.3': 2.3,
+        'mistralai/Mistral-7B-Instruct-v0.3': 1.8,
         'nvidia/Nemotron-Mini-4B-Instruct': 1.5,
         # 'nvidia/Mistral-NeMo-Minitron-8B-Instruct': 1.9, # (too big for gpu)
         'Qwen/Qwen2.5-7B-Instruct': 2.0,
