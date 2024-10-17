@@ -238,42 +238,46 @@ if __name__ == '__main__':
     else:
         from completion_hf import CompletionEngineHF as CE, MODELS
     models = get_model_list(args.models, set(MODELS.keys()))
-    # TODO multiple models
-    nickname = models[0]
-    print('Model:', nickname)
-    model_name = MODELS[nickname]
-    max_temperature = MAX_TEMPS[model_name]
-    engine = CE.get_completion_engine(model_name, max_temperature=max_temperature, nickname=nickname, epsilon=0)
-
     random.seed(0)
     random_instances = get_random_instances(args.num_instances)
-    temps = np.arange(0, max_temperature + EPS_GRID, EPS_GRID)
-    for letter, category in random_instances:
-        cache_fname = get_cache_fname(args.output_dir, letter, category, nickname)
-        if os.path.exists(cache_fname):
-            with open(cache_fname, 'rb') as f:
-                cache = pickle.load(f)
-        else:
-            cache = {}
-        for temp in temps:
-            temp = round(temp, 3)
-            print('Generating', args.num_samples, 'samples for', letter, category, 'at temperature', temp)
-            fname = get_sample_fname(args.output_dir, letter, category, nickname, temp)
-            if os.path.exists(fname):
-                existing_info = pickle.load(open(fname, 'rb'))
+    for model in models:
+        nickname = models[0]
+        print('Model:', nickname)
+        model_name = MODELS[nickname]
+        max_temperature = MAX_TEMPS[model_name]
+        engine = CE.get_completion_engine(model_name, max_temperature=max_temperature, nickname=nickname, epsilon=0)
+
+        temps = np.arange(0, max_temperature + EPS_GRID, EPS_GRID)
+        for letter, category in random_instances:
+            cache_fname = get_cache_fname(args.output_dir, letter, category, nickname)
+            if os.path.exists(cache_fname):
+                with open(cache_fname, 'rb') as f:
+                    cache = pickle.load(f)
             else:
-                existing_info = None
-            if existing_info and existing_info['num_samples'] >= args.num_samples:
-                print('Already have enough samples for', letter, category, 'at temperature', temp)
-                continue
-            prompt = get_scat_prompt(letter, category, engine.tokenizer)
-            start = time.time()
-            info = generate_samples(engine, letter, category, temp, args.num_samples, batch_size = args.batch_size, cache=cache, existing_info=existing_info)
-            elapsed = time.time() - start
-            print(f'Elapsed time: {elapsed:.2f}')
-            print('Saving to', fname)
-            with open(fname, 'wb') as f:
-                pickle.dump(info, f)
-            print('Saving cache to', cache_fname)
-            with open(cache_fname, 'wb') as f:
-                pickle.dump(cache, f)
+                cache = {}
+            for temp in temps:
+                temp = round(temp, 3)
+                print('Generating', args.num_samples, 'samples for', letter, category, 'at temperature', temp)
+                fname = get_sample_fname(args.output_dir, letter, category, nickname, temp)
+                if os.path.exists(fname):
+                    existing_info = pickle.load(open(fname, 'rb'))
+                else:
+                    existing_info = None
+                if existing_info and existing_info['num_samples'] >= args.num_samples:
+                    print('Already have enough samples for', letter, category, 'at temperature', temp)
+                    continue
+                prompt = get_scat_prompt(letter, category, engine.tokenizer)
+                start = time.time()
+                info = generate_samples(engine, letter, category, temp, args.num_samples, batch_size = args.batch_size, cache=cache, existing_info=existing_info)
+                elapsed = time.time() - start
+                print(f'Elapsed time: {elapsed:.2f}')
+                print('Saving to', fname)
+                with open(fname, 'wb') as f:
+                    pickle.dump(info, f)
+                print('Saving cache to', cache_fname)
+                with open(cache_fname, 'wb') as f:
+                    pickle.dump(cache, f)
+        del engine
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
