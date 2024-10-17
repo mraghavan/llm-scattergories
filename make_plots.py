@@ -10,7 +10,9 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--models', '-m', type=str, required=True)
 parser.add_argument('--use_mlx', '-x', action='store_true', default=False)
-parser.add_argument('--scores_dir', '-s', type=str, default='./scores')
+parser.add_argument('--scores_dir', '-s', type=str, default='./info')
+parser.add_argument('--no_save', '-n', action='store_true', default=False)
+SAVE = True
 
 EQ_MARKER = '2'
 OPT_MARKER = '1'
@@ -19,7 +21,7 @@ def load_scores(scores_dir: str, models: list[str]):
     scores = []
     for fname in os.listdir(scores_dir):
         if fname.endswith('.pkl'):
-            with open(f'scores/{fname}', 'rb') as f:
+            with open(f'{scores_dir}/{fname}', 'rb') as f:
                 new_scores = pickle.load(f)
             model = new_scores['model']
             if model not in models:
@@ -227,9 +229,12 @@ def plot_sw_and_nash_temp_over_axis(
     plt.ylabel('Temperature')
     plt.title(f'Optimal and Nash equilibrium temperatures over {axis}')
     fname = f'img/opt_and_eq_temp_over_{axis}.png'
-    print(f'Saving to {fname}')
-    plt.savefig(fname, dpi=300)
-    plt.clf()
+    if SAVE:
+        print(f'Saving to {fname}')
+        plt.savefig(fname, dpi=300)
+        plt.clf()
+    else:
+        plt.show()
 
 def plot_sw_and_nash_welfare_over_axis(
         all_scores: pd.DataFrame,
@@ -247,8 +252,12 @@ def plot_sw_and_nash_welfare_over_axis(
     plt.ylabel('Utility')
     plt.title(f'Optimal and Nash equilibrium utility over {axis}')
     fname = f'img/opt_and_eq_sw_over_{axis}.png'
-    print(f'Saving to {fname}')
-    plt.savefig(fname, dpi=300)
+    if SAVE:
+        print(f'Saving to {fname}')
+        plt.savefig(fname, dpi=300)
+        plt.clf()
+    else:
+        plt.show()
     plt.clf()
 
 def plot_surface(temps: np.ndarray, scores: np.ndarray, nash_eq: float, nash_eq_util: float):
@@ -282,6 +291,8 @@ if __name__ == '__main__':
     models = get_model_list(args.models, set(MODELS.keys()))
 
     all_scores = load_scores_into_df(args.scores_dir, models)
+    if args.no_save:
+        SAVE = False
     print(all_scores.columns)
     plot_sw_and_nash_temp_over_axis(all_scores, 'n')
     plot_sw_and_nash_welfare_over_axis(all_scores, 'n')
