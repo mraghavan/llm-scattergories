@@ -228,6 +228,9 @@ def get_cache_fname(output_dir: str, letter: str, category: str, model_name: str
     category = re.sub(' ', '_', category)
     return f'{output_dir}/{letter}_{category}_{model_name}_cache.pkl'
 
+def get_temps(max_temp: float) -> np.ndarray:
+    return np.arange(0, max_temp + EPS_GRID, EPS_GRID)
+
 if __name__ == '__main__':
     args = parser.parse_args()
     if args.use_mlx:
@@ -235,6 +238,7 @@ if __name__ == '__main__':
     else:
         from completion_hf import CompletionEngineHF as CE, MODELS
     models = get_model_list(args.models, set(MODELS.keys()))
+    # TODO multiple models
     nickname = models[0]
     print('Model:', nickname)
     model_name = MODELS[nickname]
