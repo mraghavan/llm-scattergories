@@ -2,7 +2,7 @@
 #SBATCH --job-name=generate_samples
 #SBATCH --output=log_generate_samples_%j.out
 #SBATCH --error=log_generate_samples_%j.err
-#SBATCH --time=2:00:00
+#SBATCH --time=10:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=10G
@@ -17,4 +17,4 @@ export HF_TOKEN=$(cat ~/.HF_TOKEN)
 
 echo "Running script"
 # Run the Python script
-time python3 generate_samples.py -m llama3 -n 1 -s 50
+time python3 generate_samples.py -m llama3.1 -n 10 -s 500
