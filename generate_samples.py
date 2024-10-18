@@ -147,8 +147,7 @@ def generate_samples(
                 unfinished += 1
             if is_invalid:
                 generated_text = engine.tokenizer.decode(sample[:-1])
-            if finished or too_long:
-                generated_text = standardize_str(generated_text, engine.tokenizer.eos_token)
+            generated_text = standardize_str(generated_text, engine.tokenizer.eos_token)
             c[generated_text] += 1
 
     while len(queue) < batch_size and sum(c.values()) + len(queue) < num_samples:
