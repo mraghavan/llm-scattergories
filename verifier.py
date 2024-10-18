@@ -39,7 +39,6 @@ class Verifier():
             results = [self.engine.tokenizer.decode(token) for token in tokens]
             for answer, result in zip(batch, results):
                 responses[answer] = is_yes(result, EOS)
-                print(responses[answer], answer)
         return responses
 
 
