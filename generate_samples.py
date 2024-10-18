@@ -29,7 +29,7 @@ LARGE_TEMP = 3.0
 LARGE_P = 0.99
 
 class SortedLogitsAndTokens():
-    # Necessary to optimize cache. Otherwise, nemotron needs ~1MB per sample
+    # Necessary to optimize cache. Otherwise, we sort every time
     def __init__(self, logits: np.ndarray):
         # logits is 1D
         # guarantee that logits are sorted in increasing order
@@ -41,7 +41,7 @@ class SortedLogitsAndTokens():
         mask = np.array(cumulative_probs > 1 - LARGE_P, copy=False)
         self.tokens = np.array(sorted_indices[mask], copy=True)
         self.logits = np.array(logits[self.tokens], copy=True)
-        print('Size reduction:', logits.size, '->', self.tokens.size, '(', self.tokens.size / logits.size, ')')
+        # print('Size reduction:', logits.size, '->', self.tokens.size, '(', self.tokens.size / logits.size, ')')
 
 # TODO move this
 from generate_trees import get_scat_prompt, get_model_list, MAX_TEMPS
@@ -272,6 +272,11 @@ if __name__ == '__main__':
     else:
         from completion_hf import CompletionEngineHF as CE, MODELS
     models = get_model_list(args.models, set(MODELS.keys()))
+    if args.job_num >= len(models):
+        print(f'Job number {args.job_num} is out of range')
+        sys.exit(0)
+    models = models[args.job_num::args.num_jobs]
+    print(f'Models for job {args.job_num}: {models}')
     random.seed(0)
     random_instances = get_random_instances(args.num_instances)
     for nickname in models:
