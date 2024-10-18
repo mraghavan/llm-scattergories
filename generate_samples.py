@@ -8,9 +8,8 @@ import re
 import pickle
 import random
 from collections import Counter
-from completion_base import build_completion_tree, CompletionEngine, CompletionNode, softmax_temperature, softmax_temperature_2d
+from completion_base import CompletionEngine, softmax_temperature, softmax_temperature_2d
 from scat_utils import get_scat_prompt, get_random_instances, standardize_str
-from verifier import Verifier
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--models', '-m', type=str, required=True)
