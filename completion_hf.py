@@ -76,8 +76,6 @@ class CompletionEngineHF(CompletionEngine):
         if self.nickname in NO_BATCH:
             all_logits = [self.get_logits_raw(x) for x in model_input]
             return np.array(all_logits)
-        # TODO remove after testing
-        assert False
         max_len = max(len(x) for x in model_input)
         padded_model_inputs = []
         attention_mask = []
