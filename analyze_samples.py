@@ -30,7 +30,6 @@ def get_eq(scores: np.ndarray, temps: list[float]):
     info = {}
     eq_inds = []
     max_indices = np.argmax(scores, axis=0)
-    print('Max indices: ', max_indices)
     for i, ind in enumerate(max_indices):
         if i == ind:
             print('Exact Nash equilibrium: ', temps[i], 'Avg. welfare', scores[i, ind])
@@ -170,15 +169,20 @@ if __name__ == '__main__':
     random.seed(0)
     ns = [1, 2, 3, 5, 10, 20, 30]
     gammas = [1.0]
-    instances = get_random_instances(args.num_instances)
+    LARGE_NUM = 1000
+    instances = get_random_instances(LARGE_NUM)
     for model in models:
-        #  iterate over all temps
+        model_instances = []
+        # iterate over all temps
         temps = get_temps(MAX_TEMPS[MODELS[model]])
         temps = [round(temp, 3) for temp in temps]
         sample_map = {}
         verifier_map = {}
         for letter, category in instances:
             verifier_fname = get_v_fname(args.input_dir, letter, category, args.verifier)
+            if not os.path.exists(verifier_fname):
+                break
+            model_instances.append((letter, category))
             with open(verifier_fname, 'rb') as f:
                 verified_yes = pickle.load(f)['yes']
             verifier_map[(letter, category)] = verified_yes
@@ -190,6 +194,7 @@ if __name__ == '__main__':
                     samples = pickle.load(f)
                 dist = samples['dist']
                 sample_map[(letter, category)][temp] = dist
+        print(f'Number of instances for model {model}: {len(model_instances)}')
         # compute scores
         all_scores = {}
         sample_sizes = {}
@@ -203,7 +208,7 @@ if __name__ == '__main__':
             ss = np.zeros((len(temps), len(temps)), dtype=int)
             sample_sizes[n] = ss
             for (i, t1), (j, t2) in product(enumerate(temps), repeat=2):
-                for letter, category in instances:
+                for letter, category in model_instances:
                     score, sample_size = compute_scores(
                             verifier_map[(letter, category)],
                             sample_map[(letter, category)][t1],
@@ -211,12 +216,12 @@ if __name__ == '__main__':
                             n,
                             gamma=gamma,
                             )
-                    scores[i, j] +=  score / len(instances)
+                    scores[i, j] +=  score / len(model_instances)
                     ss[i, j] += sample_size
             print(f'{model} {n} {gamma}')
             # print(scores)
             # print(ss)
-            info = {'model': model, 'n': n, 'gamma': gamma, 'games': instances, 'max_temperature': max(temps)}
+            info = {'model': model, 'n': n, 'gamma': gamma, 'games': model_instances, 'max_temperature': max(temps)}
             info.update(get_eq(scores, temps))
             with open(info_fname, 'wb') as f:
                 print('Writing to', info_fname)
