@@ -75,7 +75,6 @@ def get_eq(scores: np.ndarray, temps: list[float]):
     hit_max_temp = scores[-1,:] - np.max(scores, axis=0)
     a_temps = np.array(temps)
     if any(hit_max_temp >= 0):
-        print(hit_max_temp >= 0)
         print('Hit max temp in best response:', a_temps[hit_max_temp>=0])
     else:
         print('Did not hit max temp in best response. Margin:', -np.max(hit_max_temp))
@@ -167,8 +166,8 @@ if __name__ == '__main__':
     # get models
     models = get_model_list(args.models, set(MODELS.keys()))
     random.seed(0)
-    ns = [1, 2, 3, 5, 10, 20, 30]
-    gammas = [1.0]
+    ns = [1, 2, 3, 5, 10, 15, 20]
+    gammas = [0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0]
     LARGE_NUM = 1000
     instances = get_random_instances(LARGE_NUM)
     for model in models:
@@ -190,6 +189,9 @@ if __name__ == '__main__':
             for temp in temps:
                 temp = round(temp, 3)
                 sample_fname = get_sample_fname(args.input_dir, letter, category, model, temp)
+                if not os.path.exists(sample_fname):
+                    print('Warning: missing', sample_fname)
+                    break
                 with open(sample_fname, 'rb') as f:
                     samples = pickle.load(f)
                 dist = samples['dist']
@@ -198,6 +200,8 @@ if __name__ == '__main__':
         # compute scores
         all_scores = {}
         sample_sizes = {}
+        # assume temps is the same for all (letter, category pairs)
+        temps = [temp for temp in temps if temp in sample_map[model_instances[0]]]
         for n, gamma in product(ns, gammas):
             # if n == 1, don't need to do all this
             info_fname = get_info_fname(args.ouput_dir, model, n, gamma)
