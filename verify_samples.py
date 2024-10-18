@@ -15,6 +15,7 @@ parser.add_argument('--num_instances', '-n', type=int, default=20)
 parser.add_argument('--use_mlx', '-x', action='store_true', default=False)
 parser.add_argument('--input_dir', '-i', type=str, default='./samples')
 parser.add_argument('--output_dir', '-o', type=str, default='./samples')
+parser.add_argument('--batch_size', '-b', type=int, default=4)
 
 def get_v_fname(output_dir: str, letter: str, category: str, v_name: str) -> str:
     category = re.sub('[^a-zA-Z0-9 ]+', '', category)
@@ -41,6 +42,9 @@ if __name__ == '__main__':
             for temp in temps:
                 temp = round(temp, 3)
                 fname = get_sample_fname(args.input_dir, letter, category, nickname, temp)
+                if not os.path.exists(fname):
+                    print(f'File {fname} does not exist')
+                    continue
                 with open(fname, 'rb') as f:
                     samples = pickle.load(f)
                 dist = samples['dist']
@@ -54,15 +58,21 @@ if __name__ == '__main__':
         else:
             verified_yes = set()
             verified_no = set()
+        verification_batch = set()
         for answer in to_be_verified:
             if answer in verified_yes or answer in verified_no:
                 continue
-            is_yes = verifier.verify(answer, category, letter)
+            verification_batch.add(answer)
+        print('Number to be verified:', len(verification_batch))
+        start = time.time()
+        responses = verifier.verify_batch(verification_batch, category, letter, args.batch_size)
+        elapsed = time.time() - start
+        print('Number of responses:', len(responses))
+        print('Time elapsed:', elapsed)
+        for answer, is_yes in responses.items():
             if is_yes:
-                print('YES:\t', answer)
                 verified_yes.add(answer)
             else:
-                print('NO:\t', answer)
                 verified_no.add(answer)
         with open(vfname, 'wb') as f:
             print(f'Saving verified samples to {vfname}')
