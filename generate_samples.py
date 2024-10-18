@@ -26,6 +26,7 @@ parser.add_argument('--batch_size', '-b', type=int, default=4)
 EPS_GRID = 0.1
 LARGE_TEMP = 3.0
 LARGE_P = 0.99
+CACHE_MIN = 0.01
 
 class SortedLogitsAndTokens():
     # Necessary to optimize cache. Otherwise, we sort every time
@@ -44,47 +45,6 @@ class SortedLogitsAndTokens():
 
 # TODO move this
 from generate_trees import get_scat_prompt, get_model_list, MAX_TEMPS
-
-# def generate_text(engine: CompletionEngine,
-                  # prompt_tokens: list,
-                  # max_tokens: int,
-                  # cache: dict,
-                  # allowed_tokens: set,
-                  # allowed_starting_tokens: set,
-                  # ) -> tuple[str, float, bool]:
-    # prompt_tokens = prompt_tokens.copy()
-    # sampled_tokens = []
-    # log_prob = 0.0
-    # while max_tokens > 0:
-        # max_tokens -= 1
-        # tup_tokens = tuple(sampled_tokens)
-        # # TODO set top_p to 0 in the engine and do it here so we cache the full logits
-        # if tup_tokens in cache:
-            # tokens, logits = cache[tuple(tup_tokens)]
-        # else:
-            # tokens, logits = engine.get_logits(prompt_tokens)
-            # cache[tup_tokens] = (tokens, logits)
-        # temperature = engine.max_temperature
-        # probs = softmax_temperature(logits, temperature)
-        # sampled_index = int(random.choices(range(len(probs)), weights=probs, k=1)[0])
-        # sampled_token = int(tokens[sampled_index])
-        # token_prob = probs[sampled_index]
-        # log_prob += np.log(token_prob)
-        # prompt_tokens.append(sampled_token)
-        # sampled_tokens.append(sampled_token)
-        # if len(sampled_tokens) == 1 and sampled_token not in allowed_starting_tokens:
-            # st = engine.tokenizer.decode(sampled_token)
-            # # print('Discarding starting token:', st)
-            # return engine.tokenizer.decode(sampled_tokens), np.exp(log_prob), False
-        # elif sampled_token not in allowed_tokens:
-            # st = engine.tokenizer.decode(sampled_token)
-            # # print('Discarding token:', st, sampled_token)
-            # return engine.tokenizer.decode(sampled_tokens), np.exp(log_prob), False
-        # if sampled_token == int(engine.tokenizer.eos_token_id):
-            # break
-    # print(engine.tokenizer.decode(sampled_tokens))
-    # print(np.exp(log_prob))
-    # return engine.tokenizer.decode(sampled_tokens), np.exp(log_prob), True
 
 def get_new_sample_prefix(temperature: float, top_p: float, cache: dict[tuple, SortedLogitsAndTokens]) -> tuple[list[int], float]:
     sample = ()
@@ -207,8 +167,8 @@ def generate_samples(
         new_log_probs = []
         for i, t in enumerate(queue):
             tup = tuple(t)
-            # only cache if there's a 1% chance of sampling it again
-            if tup not in cache and np.exp(log_probs[i]) > 0.01:
+            # only cache if there's a reasonably large chance of sampling it again
+            if tup not in cache and np.exp(log_probs[i]) > CACHE_MIN:
                 cache[tup] = sorted_logits_list[i]
             new_token, new_log_prob = sample_from_sorted_logits(sorted_logits_list[i], temperature, top_p)
             new_tokens.append(new_token)
