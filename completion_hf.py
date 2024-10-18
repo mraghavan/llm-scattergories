@@ -74,7 +74,7 @@ class CompletionEngineHF(CompletionEngine):
 
     def get_logits_raw_batch(self, model_input: list[list]) -> np.ndarray:
         if self.nickname in NO_BATCH:
-            all_logits = [self.get_logits_raw_batch(x) for x in model_input]
+            all_logits = [self.get_logits_raw(x) for x in model_input]
             return np.array(all_logits)
         # TODO remove after testing
         assert False
