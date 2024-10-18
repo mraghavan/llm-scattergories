@@ -18,7 +18,7 @@ export HF_TOKEN=$(cat ~/.HF_TOKEN)
 
 echo "Running script"
 # Run the Python script
-time python3 generate_samples.py -m nemotron,phi3.5,llama3.2,mistral,smollm,llama3 -n 20 -s 2000 -b 6 -j $SLURM_ARRAY_TASK_ID -t $SLURM_ARRAY_TASK_COUNT
+time python3 generate_samples.py -m nemotron,phi3.5,llama3.2,mistral,smollm,llama3.1 -n 20 -s 2000 -b 6 -j $SLURM_ARRAY_TASK_ID -t $SLURM_ARRAY_TASK_COUNT
 #for b in 6 16; do
     #time python3 generate_samples.py -m nemotron -n 10 -s 500 -b $b
 #done
