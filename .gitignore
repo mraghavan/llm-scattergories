@@ -1,5 +1,7 @@
 trees/
 scores/
+info/
+samples/
 img/
 *.out
 *.err
