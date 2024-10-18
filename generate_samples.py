@@ -223,6 +223,9 @@ def get_cache_fname(output_dir: str, letter: str, category: str, model_name: str
 def get_temps(max_temp: float) -> np.ndarray:
     return np.arange(0, max_temp + EPS_GRID, EPS_GRID)
 
+def get_temps_clean(max_temp: float) -> list[float]:
+    return [round(x, 3) for x in get_temps(max_temp)]
+
 if __name__ == '__main__':
     args = parser.parse_args()
     if args.use_mlx:
