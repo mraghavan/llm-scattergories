@@ -18,7 +18,7 @@ MODELS = {
         'qwen2.5': 'Qwen/Qwen2.5-7B-Instruct', # (similar to mistral, don't need both)
           }
 
-LOW_PRECISION_MODELS = {
+NO_BATCH = {
         'llama3',
         'llama3.1',
         }
@@ -36,17 +36,10 @@ class CompletionEngineHF(CompletionEngine):
             ) -> 'CompletionEngine':
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         if torch.cuda.is_available():
-            if model_name in LOW_PRECISION_MODELS:
-                model = AutoModelForCausalLM.from_pretrained(
-                    model_name,
-                    load_in_8bit=True,
-                    bnb_8bit_compute_dtype=torch.float16,
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                torch_dtype=torch.float16,
                 )
-            else:
-                model = AutoModelForCausalLM.from_pretrained(
-                    model_name,
-                    torch_dtype=torch.float16,
-                    )
         else:
             # For some reason half precision doesn't work on CPU
             model = AutoModelForCausalLM.from_pretrained(
@@ -64,17 +57,15 @@ class CompletionEngineHF(CompletionEngine):
             print("GPU is not available. Using CPU.")
             device = torch.device("cpu")
         print('Current pad token', self.tokenizer.pad_token)
-        if not self.tokenizer.pad_token:
+        if not self.tokenizer.pad_token and self.nickname not in NO_BATCH:
             self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
             self.model.resize_token_embeddings(len(self.tokenizer))
         model.to(device)
         CompletionEngineHF.DEVICE = device
 
     def get_logits_raw(self, model_input: list):
-        # TODO speed up by batching
         torch_input = torch.tensor(model_input).unsqueeze(0).to(self.DEVICE)
         with torch.no_grad():
-            # TODO use_cache?
             logits = self.model(input_ids = torch_input, use_cache=False).logits
         logits = logits[:, -1, :]
         logits = logits.squeeze(0).to('cpu')
@@ -82,6 +73,11 @@ class CompletionEngineHF(CompletionEngine):
         return logits
 
     def get_logits_raw_batch(self, model_input: list[list]) -> np.ndarray:
+        if self.nickname in NO_BATCH:
+            all_logits = [self.get_logits_raw_batch(x) for x in model_input]
+            return np.array(all_logits)
+        # TODO remove after testing
+        assert False
         max_len = max(len(x) for x in model_input)
         padded_model_inputs = []
         attention_mask = []
