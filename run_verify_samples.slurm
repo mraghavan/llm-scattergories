@@ -17,4 +17,4 @@ export HF_TOKEN=$(cat ~/.HF_TOKEN)
 
 echo "Running script"
 # Run the Python script
-time python3 verify_samples.py -m nemotron,phi3.5,smollm,llama3.2,mistral -n 10 -v qwen2.5
+time python3 verify_samples.py -m llama3.1 -n 10 -v qwen2.5
