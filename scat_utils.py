@@ -94,7 +94,7 @@ def is_yes(response: str, EOS: str):
     response = standardize_str(response, EOS)
     return response == 'yes' or response == 'y'
 
-def standardize_str(s: str, EOS_str: str) -> str:
+def standardize_str(s: str, EOS_str: str='') -> str:
     s = s.replace(EOS_str, '')
     s = re.sub('[^a-zA-Z ]+', '', s).lower().strip()
     return re.sub('  ', ' ', s)
