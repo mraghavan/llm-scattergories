@@ -162,7 +162,7 @@ def plot_temp_over_axis_helper(all_scores: pd.DataFrame, metric='opt', axis='n',
     if axis == 'n':
         other = ('gamma', 1.0)
     else:
-        other = ('n', 2)
+        other = ('n', 3)
     for model in sorted(all_scores['model'].unique()):
         maxed_out = []
         model_scores = all_scores[all_scores['model'] == model]
@@ -296,6 +296,8 @@ if __name__ == '__main__':
     print(all_scores.columns)
     plot_sw_and_nash_temp_over_axis(all_scores, 'n')
     plot_sw_and_nash_welfare_over_axis(all_scores, 'n')
+    plot_sw_and_nash_temp_over_axis(all_scores, 'gamma')
+    plot_sw_and_nash_welfare_over_axis(all_scores, 'gamma')
     # TODO
     # - plot quality into the tail:
     #  - take the ranking as temp goes to 0
