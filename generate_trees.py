@@ -21,8 +21,8 @@ parser.add_argument('--job_num', '-j', type=int, default=0)
 parser.add_argument('--num_jobs', '-t', type=int, default=1)
 
 MAX_TEMPS = {
-        'meta-llama/Meta-Llama-3-8B-Instruct': 2.5,
-        'meta-llama/Llama-3.1-8B-Instruct': 2.5,
+        'meta-llama/Meta-Llama-3-8B-Instruct': 1.8,
+        'meta-llama/Llama-3.1-8B-Instruct': 1.8,
         'meta-llama/Llama-3.2-1B-Instruct': 1.5,
         'HuggingFaceTB/SmolLM-1.7B-Instruct': 1.2,
         'Qwen/Qwen2-7B': 1.5,
