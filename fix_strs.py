@@ -17,6 +17,7 @@ if __name__ == '__main__':
             for s, count in dist.items():
                 new_dist[standardize_str(s)] += count
             assert sum(new_dist.values()) == sum(dist.values())
-            info['dist'] = new_dist
-            with open(full_path, 'wb') as f:
-                pickle.dump(info, f)
+            if new_dist != dist:
+                info['dist'] = new_dist
+                with open(full_path, 'wb') as f:
+                    pickle.dump(info, f)
