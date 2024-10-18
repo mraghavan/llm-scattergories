@@ -168,7 +168,7 @@ if __name__ == '__main__':
     # get models
     models = get_model_list(args.models, set(MODELS.keys()))
     random.seed(0)
-    ns = [1, 2, 3, 5, 10, 20]
+    ns = [1, 2, 3, 5, 10, 20, 30]
     gammas = [1.0]
     instances = get_random_instances(args.num_instances)
     for model in models:
