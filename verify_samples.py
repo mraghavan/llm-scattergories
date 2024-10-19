@@ -19,6 +19,7 @@ parser.add_argument('--batch_size', '-b', type=int, default=4)
 
 def get_v_fname(output_dir: str, letter: str, category: str, v_name: str) -> str:
     category = re.sub('[^a-zA-Z0-9 ]+', '', category)
+    category = re.sub(' ', '_', category)
     return os.path.join(output_dir, f'{letter}_{category}_{v_name}_verified.pkl')
 
 if __name__ == '__main__':
