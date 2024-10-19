@@ -206,14 +206,15 @@ def generate_samples(
     info['prob_mass'] = prob_mass
     info['probs'] = prob_dict
     info['dist'] = c
-    # print(prob_dict)
     return info
 
+#TODO centralize this
 def get_sample_fname(output_dir: str, letter: str, category: str, model_name: str, temp: float) -> str:
     category = re.sub('[^a-zA-Z0-9 ]+', '', category)
     category = re.sub(' ', '_', category)
     return f'{output_dir}/{letter}_{category}_{model_name}_{temp}_samples.pkl'
 
+#TODO centralize this
 def get_cache_fname(output_dir: str, letter: str, category: str, model_name: str) -> str:
     category = re.sub('[^a-zA-Z0-9 ]+', '', category)
     category = re.sub(' ', '_', category)
@@ -222,6 +223,7 @@ def get_cache_fname(output_dir: str, letter: str, category: str, model_name: str
 def get_temps(max_temp: float) -> np.ndarray:
     return np.arange(0, max_temp + EPS_GRID, EPS_GRID)
 
+#TODO use this in more places
 def get_temps_clean(max_temp: float) -> list[float]:
     return [round(x, 3) for x in get_temps(max_temp)]
 
