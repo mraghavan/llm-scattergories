@@ -98,15 +98,3 @@ def standardize_str(s: str, EOS_str: str='') -> str:
     s = s.replace(EOS_str, '')
     s = re.sub('[^a-zA-Z ]+', '', s).lower().strip()
     return re.sub('  ', ' ', s)
-
-if __name__ == '__main__':
-    from completion_utils import MODELS
-    import random
-    from mlx_lm.utils import load
-    model_name = random.choice(list(MODELS.values()))
-    print(model_name)
-    model, tokenizer = load(model_name)
-    scat_prompt = get_scat_prompt('A', 'Food', tokenizer)
-    print(scat_prompt)
-    eval_prompt = get_eval_prompt('apple', 'Food', tokenizer)
-    print(eval_prompt)
