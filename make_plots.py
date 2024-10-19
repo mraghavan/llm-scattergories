@@ -211,7 +211,7 @@ def make_legend(handles: list[plt.Line2D]):
     legend = plt.legend(handles=new_handles, ncol=2, columnspacing=-1.5, handletextpad=0.0)
     for i, text in enumerate(legend.get_texts()):
         if i == 0 or i == len_handles//2 + 1:  # Title patches
-            text.set_position((-75, -10))  # Move the text up
+            text.set_position((-54, -10))  # Move the text up
         else:
             text.set_position((10, 0))  # Add some padding to other labels
 
