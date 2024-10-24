@@ -33,6 +33,42 @@ EVAL_EXAMPLES = [
         ("Category: Animals\nAnswer: rock", "no"),
         ]
 
+MAX_TEMPS = {
+        'meta-llama/Meta-Llama-3-8B-Instruct': 1.7,
+        'meta-llama/Llama-3.1-8B-Instruct': 1.8,
+        'meta-llama/Llama-3.2-1B-Instruct': 1.4,
+        'HuggingFaceTB/SmolLM-1.7B-Instruct': 1.2,
+        'Qwen/Qwen2-7B': 1.5,
+        'google/gemma-2-2b-it': 1.5,
+        'microsoft/Phi-3.5-mini-instruct': 2.2,
+        'mistralai/Mistral-7B-Instruct-v0.3': 1.6,
+        'nvidia/Nemotron-Mini-4B-Instruct': 1.7,
+        # 'nvidia/Mistral-NeMo-Minitron-8B-Instruct': 1.9, # (too big for gpu)
+        'Qwen/Qwen2.5-7B-Instruct': 2.0,
+        'mlx-community/Meta-Llama-3.1-8B-Instruct-8bit': 1.5,
+        'mlx-community/Meta-Llama-3-8B-Instruct-8bit': 1.5,
+        # 'gemma2': 'mlx-community/gemma-2-9b-8bit', (not an instruct model)
+        'mlx-community/Qwen1.5-7B-Chat-4bit': 1.5,
+        # 'openelm1_1': 'mlx-community/OpenELM-1_1B-Instruct-8bit', (no chat template)
+        'mlx-community/SmolLM-1.7B-Instruct-fp16': 1.5,
+        'mlx-community/Mistral-Nemo-Instruct-2407-4bit': 1.5,
+        # 'phi3': 'mlx-community/Phi-3-small-8k-instruct-AQ4_32', (haven't tried yet)
+        # 'mlx-community/Phi-3.5-mini-instruct-bf16': 1.5,
+        'mlx-community/Phi-3.5-mini-instruct-bf16': 0.5,
+        # "yi1.5": 'mlx-community/Yi-1.5-9B-Chat-4bit', (haven't tried yet)
+        # 'mlx-community/Llama-3.2-3B-Instruct-8bit': 1.5,
+        'mlx-community/Llama-3.2-3B-Instruct-8bit': 0.5,
+        }
+
+def get_model_list(models: str, allowed_models: set[str]) -> list[str]:
+    if models == 'all':
+        return sorted(list(allowed_models))
+    model_list = models.split(',')
+    for model in model_list:
+        if model not in allowed_models:
+            raise ValueError(f'Invalid model: {model}')
+    return sorted(model_list)
+
 def get_random_letter():
     return random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZ')
 

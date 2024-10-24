@@ -1,12 +1,12 @@
 import os
-from file_manager import FileManager
 import random
 import numpy as np
-from generate_trees import MAX_TEMPS, get_model_list
 from collections import Counter
 from itertools import product
 import argparse
 from math import comb
+from file_manager import FileManager
+from scat_utils import MAX_TEMPS, get_model_list
 parser = argparse.ArgumentParser()
 parser.add_argument('--models', '-m', type=str, required=True)
 parser.add_argument('--verifier', '-v', type=str, default='llama3.1')

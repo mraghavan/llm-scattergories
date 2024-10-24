@@ -3,7 +3,7 @@ from typing import Generator
 from pathlib import Path
 from functools import lru_cache
 import pickle
-from generate_trees import MAX_TEMPS, get_model_list
+from scat_utils import MAX_TEMPS, get_model_list
 from itertools import product
 import argparse
 from math import comb
