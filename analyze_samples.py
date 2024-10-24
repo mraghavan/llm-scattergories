@@ -1,32 +1,23 @@
 import os
+from file_manager import FileManager
 import random
-import time
 import numpy as np
-import pickle
 from generate_trees import MAX_TEMPS, get_model_list
 from collections import Counter
 from itertools import product
 import argparse
 from math import comb
-from scat_utils import get_random_instances
-from generate_samples import get_temps, get_sample_fname
-from verify_samples import get_v_fname
 parser = argparse.ArgumentParser()
 parser.add_argument('--models', '-m', type=str, required=True)
-parser.add_argument('--num_instances', '-n', type=int, default=20)
 parser.add_argument('--verifier', '-v', type=str, default='llama3.1')
 parser.add_argument('--use_mlx', '-x', action='store_true', default=False)
 parser.add_argument('--input_dir', '-i', type=str, default='./samples')
-parser.add_argument('--ouput_dir', '-o', type=str, default='./info')
-parser.add_argument('--job_num', '-j', type=int, default=0)
-parser.add_argument('--total_jobs', '-t', type=int, default=1)
+parser.add_argument('--output_dir', '-o', type=str, default='./info')
 
 def get_info_fname(output_dir: str, model: str, n: int, gamma: float) -> str:
     return os.path.join(output_dir, f'{model}_n{n}_gamma{gamma:.2f}_info.pkl')
 
 def get_eq(scores: np.ndarray, temps: list[float]):
-    # scores[0, :] += 0.0000001
-    # print('Scores: ', scores)
     info = {}
     eq_inds = []
     max_indices = np.argmax(scores, axis=0)
@@ -45,7 +36,6 @@ def get_eq(scores: np.ndarray, temps: list[float]):
     else:
         # moving on to aproximate equilibria
         for i, ind in enumerate(max_indices):
-            # print(f'Temperature {temps[i]:.2f} best response to {temps[ind]:.2f}')
             if abs(i - ind) <= 1:
                 print('Nash equilibrium: ', temps[i], 'Avg. welfare', scores[i, ind])
                 eq_inds.append(i)
@@ -83,14 +73,7 @@ def get_eq(scores: np.ndarray, temps: list[float]):
     info['temperatures'] = a_temps
     return info
 
-def get_score(verified_yes: dict, answer1: str, answers2: list[str], gamma: float=1.0) -> float:
-    # Use the faster version instead
-    if answer1 not in verified_yes:
-        return 0.0
-    others_same = sum(1 for a2 in answers2 if answer1 == a2)
-    return (1 + others_same) **(-gamma)
-
-def get_score_faster(verified_yes: dict, answer1: str, answers2: Counter, n: int, same: bool=False, gamma: float=1.0) -> float:
+def get_score(verified_yes: dict, answer1: str, answers2: Counter, n: int, same: bool=False, gamma: float=1.0) -> float:
     # Pr[exactly k red balls sampling without replacement]
     # comb(num_red, k) * comb(N - num_red, n-1-k) / comb(N, n-1)
     # sum k from 0 to n-1
@@ -116,35 +99,14 @@ def compute_scores(verified_yes: dict, s1: Counter, s2: Counter, n: int, gamma: 
             if k in verified_yes:
                 s += v
         return s/sum(s1.values()), sum(s1.values())
-    # use symmetric
 
     if s1 is s2:
         effective_sample_size = sum(s1.values()) // n
     else:
         effective_sample_size = min(sum(s2.values()) // (n-1), sum(s1.values()))
     for answer1, count1 in s1.items():
-        s += count1 * get_score_faster(verified_yes, answer1, s2, n, same=s1 is s2, gamma=gamma)
+        s += count1 * get_score(verified_yes, answer1, s2, n, same=s1 is s2, gamma=gamma)
     return s/sum(s1.values()), effective_sample_size
-
-    # num_iterations = 50
-    # for _ in range(num_iterations):
-        # if s1 is s2:
-            # # symmetric case
-            # max_size = sum(s1.values()) // n
-            # all_samples = samples_from_counter(s1, max_size * n)
-            # samples = [all_samples[i::max_size] for i in range(max_size)]
-            # samples1 = [samp[0] for samp in samples]
-            # samples2 = [samp[1:] for samp in samples]
-        # else:
-            # max_size = sum(s2.values()) // (n-1)
-            # samples1 = samples_from_counter(s1, max_size)
-            # all_samples2 = samples_from_counter(s2, max_size * (n-1))
-            # # list of lists, inner lists are samples of size max_size
-            # samples2 = [all_samples2[i::max_size] for i in range(max_size)]
-        # for sample1, sample2 in zip(samples1, samples2):
-            # s += get_score(verified_yes, sample1, sample2, gamma)
-        # l = len(samples1)
-    # return s/l/num_iterations, l
 
 def samples_from_counter(d: Counter, num_samples: int) -> list:
     # sample without replacement
@@ -164,47 +126,37 @@ if __name__ == '__main__':
     else:
         from completion_hf import MODELS
     # get models
+    fm = FileManager.from_args(samples_dir=args.input_dir, info_dir=args.output_dir)
     models = get_model_list(args.models, set(MODELS.keys()))
-    random.seed(0)
     ns = [1, 2, 3, 5, 10, 15, 20]
     gammas = [0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0]
-    LARGE_NUM = 1000
-    instances = get_random_instances(LARGE_NUM)
+    all_verified = fm.get_all_verified(verifier=args.verifier)
+    verified_instances = set(all_verified[['letter', 'category']].drop_duplicates().itertuples(index=False, name=None))
     for model in models:
-        model_instances = []
-        # iterate over all temps
-        temps = get_temps(MAX_TEMPS[MODELS[model]])
-        temps = [round(temp, 3) for temp in temps]
+        all_samples = fm.get_all_samples(model=model, max_temp=MAX_TEMPS[MODELS[model]])
+        model_instances = list(all_samples[['letter', 'category']].drop_duplicates().itertuples(index=False, name=None))
         sample_map = {}
         verifier_map = {}
-        for letter, category in instances:
-            verifier_fname = get_v_fname(args.input_dir, letter, category, args.verifier)
-            if not os.path.exists(verifier_fname):
-                break
-            model_instances.append((letter, category))
-            with open(verifier_fname, 'rb') as f:
-                verified_yes = pickle.load(f)['yes']
+        all_temps = set()
+        for letter, category in model_instances:
+            assert (letter, category) in verified_instances
+            verified_yes = fm.load_verified(letter, category, args.verifier)['yes']
             verifier_map[(letter, category)] = verified_yes
             sample_map[(letter, category)] = {}
-            for temp in temps:
-                temp = round(temp, 3)
-                sample_fname = get_sample_fname(args.input_dir, letter, category, model, temp)
-                if not os.path.exists(sample_fname):
-                    print('Warning: missing', sample_fname)
-                    break
-                with open(sample_fname, 'rb') as f:
-                    samples = pickle.load(f)
-                dist = samples['dist']
-                sample_map[(letter, category)][temp] = dist
+            temp_df = all_samples[(all_samples['letter'] == letter) & (all_samples['category'] == category)]
+            for temp in temp_df['temperature']:
+                all_temps.add(temp)
+                samples = fm.load_samples(letter, category, model, temp)
+                sample_map[(letter, category)][temp] = samples['dist']
         print(f'Number of instances for model {model}: {len(model_instances)}')
         # compute scores
         all_scores = {}
         sample_sizes = {}
         # assume temps is the same for all (letter, category pairs)
-        temps = [temp for temp in temps if temp in sample_map[model_instances[0]]]
+        temps = sorted(list(all_temps))
         for n, gamma in product(ns, gammas):
             # if n == 1, don't need to do all this
-            info_fname = get_info_fname(args.ouput_dir, model, n, gamma)
+            info_fname = fm.get_info_fname(model, n, gamma)
             if os.path.exists(info_fname):
                 continue
             scores = np.zeros((len(temps), len(temps)))
@@ -223,11 +175,7 @@ if __name__ == '__main__':
                     scores[i, j] +=  score / len(model_instances)
                     ss[i, j] += sample_size
             print(f'{model} {n} {gamma}')
-            # print(scores)
-            # print(ss)
             info = {'model': model, 'n': n, 'gamma': gamma, 'games': model_instances, 'max_temperature': max(temps)}
             info.update(get_eq(scores, temps))
-            with open(info_fname, 'wb') as f:
-                print('Writing to', info_fname)
-                pickle.dump(info, f)
+            fm.write_info(model, n, gamma, info)
             print('CI bound:', np.max(1.96 * np.sqrt(scores * (1 - scores) / ss)))
