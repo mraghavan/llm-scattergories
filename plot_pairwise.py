@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from typing import Iterable
 import os
 import pickle
 from analyze_pairwise import get_pairwise_fname
@@ -177,7 +178,7 @@ def load_eqs(
         folder: str,
         model1: str,
         model2: str,
-        ns: list[int],
+        ns: Iterable[int],
         gamma: float,
         ):
     results = {}
