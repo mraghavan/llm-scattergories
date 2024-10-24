@@ -1,14 +1,12 @@
 import os
 from typing import Generator
+from pathlib import Path
 from functools import lru_cache
 import pickle
 from generate_trees import MAX_TEMPS, get_model_list
 from itertools import product
 import argparse
 from math import comb
-from scat_utils import get_deterministic_instances
-from generate_samples import get_temps_clean, get_sample_fname, EPS_GRID
-from verify_samples import get_v_fname
 from file_manager import FileManager
 parser = argparse.ArgumentParser()
 parser.add_argument('--models', '-m', type=str, required=True)
@@ -20,13 +18,36 @@ parser.add_argument('--output_dir', '-o', type=str, default='./info')
 parser.add_argument('--job_num', '-j', type=int, default=0)
 parser.add_argument('--total_jobs', '-t', type=int, default=1)
 
-LARGE_NUM = 100
+def load_samples(model: str, max_temp: float, fm: FileManager):
+    all_samples = fm.get_all_samples(model=model)
+    samples = {}
+    for _, row in all_samples.iterrows():
+        if row['temp'] > max_temp:
+            continue
+        t = row['temp']
+        if t not in samples:
+            samples[t] = {}
+        path = Path(row['fname']) # type: ignore
+        with open(path, 'rb') as f:
+            samples[t][(row['letter'], row['category'])] = pickle.load(f)['dist']
+    return samples
+
+def load_verified_map(verifier: str, fm: FileManager):
+    all_verified = fm.get_all_verified(verifier=verifier)
+    verified_map = {}
+    for _, row in all_verified.iterrows():
+        path = Path(row['fname']) # type: ignore
+        with open(path, 'rb') as f:
+            verified_map[(row['letter'], row['category'])] = pickle.load(f)['yes']
+    return verified_map
+
 class PairwiseEquilibria:
-    def __init__(self, model1: str, model2: str, folder: str, max_temps: dict[str, float]):
-        instances = get_deterministic_instances(LARGE_NUM)
+    def __init__(self, model1: str, model2: str, verifier: str, fm: FileManager, max_temps: dict[str, float]):
         temp1 = max_temps[model1]
         temp2 = max_temps[model2]
-        samples1, samples2, verified_map = get_all_instances(folder, instances, model1, model2, temp1, temp2, verifier)
+        samples1 = load_samples(model1, temp1, fm)
+        samples2 = load_samples(model2, temp2, fm)
+        verified_map = load_verified_map(verifier, fm)
         self.samples1 = samples1
         self.samples2 = samples2
         self.verified_map = verified_map
@@ -136,7 +157,6 @@ class PairwiseEquilibria:
             n2: int,
             temp1: float,
             temp2: float,
-            approx: bool=False,
             ) -> Generator[tuple[int, int, float], None, None]:
         temps1 = sorted(list(self.samples1.keys()))
         temps2 = sorted(list(self.samples2.keys()))
@@ -150,16 +170,12 @@ class PairwiseEquilibria:
             for t1 in temps1:
                 if t1 == temp1:
                     continue
-                if approx and abs(t1 - temp1) <= EPS_GRID + 1e-5:
-                    continue
                 yield (1, 1, t1)
             for t2 in temps2:
                 yield (1, 2, t2)
         if n2 > 0:
             for t2 in temps2:
                 if t2 == temp2:
-                    continue
-                if approx and abs(t2 - temp2) <= EPS_GRID + 1e-5:
                     continue
                 yield (2, 2, t2)
             for t1 in temps1:
@@ -195,36 +211,6 @@ class PairwiseEquilibria:
                     'eps': eps,
                 })
         return all_eqs
-
-def get_all_instances(folder: str, instances: list[tuple[str, str]], model1: str, model2: str, temp1: float, temp2: float, verifier: str):
-    temps1 = get_temps_clean(temp1)
-    temps2 = get_temps_clean(temp2)
-    samples1 = {}
-    samples2 = {}
-    verified_yes = {}
-    for letter, category in instances:
-        files_for_model_1 = [get_sample_fname(folder, letter, category, model1, t1) for t1 in temps1]
-        files_for_model_2 = [get_sample_fname(folder, letter, category, model2, t2) for t2 in temps2]
-        if not all([os.path.exists(f) for f in files_for_model_1]):
-            break
-        if not all([os.path.exists(f) for f in files_for_model_2]):
-            break
-        if not os.path.exists(get_v_fname(folder, letter, category, verifier)):
-            break
-        for t1, f1 in zip(temps1, files_for_model_1):
-            if t1 not in samples1:
-                samples1[t1] = {}
-            with open(f1, 'rb') as f:
-                samples1[t1][(letter, category)] = pickle.load(f)['dist']
-        for t2, f2 in zip(temps2, files_for_model_2):
-            if t2 not in samples2:
-                samples2[t2] = {}
-            with open(f2, 'rb') as f:
-                samples2[t2][(letter, category)] = pickle.load(f)['dist']
-        with open(get_v_fname(folder, letter, category, verifier), 'rb') as f:
-            verified = pickle.load(f)
-            verified_yes[(letter, category)] = verified['yes']
-    return samples1, samples2, verified_yes
 
 def get_score_two_dists(dist1: dict[str, int], dist2: dict[str, int], n1: int, n2: int, verified_yes: set[str], gamma: float=1.0) -> float:
     assert dist1 is not dist2
@@ -306,7 +292,7 @@ if __name__ == '__main__':
     ns = range(1, 21)
     gamma = 1.0
     nicknames_to_max_temps = {nickname: MAX_TEMPS[real_name] for nickname, real_name in MODELS.items() if real_name in MAX_TEMPS}
-    pairwise_eq_finder = PairwiseEquilibria(model1, model2, args.input_dir, nicknames_to_max_temps)
+    pairwise_eq_finder = PairwiseEquilibria(model1, model2, verifier, fm, nicknames_to_max_temps)
 
     for n in ns:
         fname = fm.get_pairwise_fname(model1, model2, n, gamma)
@@ -315,17 +301,3 @@ if __name__ == '__main__':
             continue
         actual_eqs = pairwise_eq_finder.find_eqs(n, gamma, eps=0.01)
         fm.write_pairwise(model1, model2, n, gamma, actual_eqs)
-
-
-
-    # 1/0
-    # Working code below
-    # for n in ns:
-        # fname = get_pairwise_fname(args.output_dir, model1, model2, n, gamma)
-        # if os.path.exists(fname):
-            # print('Skipping', fname)
-            # continue
-        # actual_eqs = pairwise_eq_finder.get_pairwise_eqs(n, gamma)
-        # with open(fname, 'wb') as f:
-            # print('Writing to', fname)
-            # pickle.dump(actual_eqs, f)
