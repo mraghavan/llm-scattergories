@@ -1,9 +1,6 @@
 import os
 from typing import Generator
 from functools import lru_cache
-import random
-import time
-import numpy as np
 import pickle
 from generate_trees import MAX_TEMPS, get_model_list
 from itertools import product
@@ -35,20 +32,6 @@ class PairwiseEquilibria:
         self.temp1 = temp1
         self.temp2 = temp2
         self.instances = sorted(list(samples1[temp1].keys()))
-
-    def get_pairwise_eqs(self, n: int, gamma: float):
-        all_eq_info = find_eqs(self.samples1, self.samples2, self.verified_map, n, gamma)
-        results = []
-        for d in all_eq_info:
-            results.append({
-                        'counts': {model1: d['n1'], model2: d['n2']},
-                        'temps': {model1: d['temp1'], model2: d['temp2']},
-                        'scores': {model1: d['utility1'], model2: d['utility2']},
-                        'converged': True,
-                        'gamma': gamma,
-                        'n': n,
-                     })
-        return results
 
     def why_not_eq(
             self,
