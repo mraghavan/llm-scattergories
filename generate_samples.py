@@ -207,11 +207,9 @@ def generate_samples(
     info['dist'] = c
     return info
 
-#TODO centralize this
 def get_temps(max_temp: float) -> np.ndarray:
     return np.arange(0, max_temp + EPS_GRID, EPS_GRID)
 
-#TODO use this in more places
 def get_temps_clean(max_temp: float) -> list[float]:
     return [round(x, 3) for x in get_temps(max_temp)]
 
@@ -235,7 +233,8 @@ if __name__ == '__main__':
         max_temperature = MAX_TEMPS[model_name]
         engine = CE.get_completion_engine(model_name, max_temperature=max_temperature, nickname=nickname, epsilon=0)
 
-        temps = np.arange(0, max_temperature + EPS_GRID, EPS_GRID)
+        # temps = np.arange(0, max_temperature + EPS_GRID, EPS_GRID)
+        temps = get_temps_clean(max_temperature)
         for letter, category in instances:
             cache_fname = fm.get_cache_fname(letter, category, nickname)
             if os.path.exists(cache_fname):
@@ -244,7 +243,6 @@ if __name__ == '__main__':
             else:
                 cache = {}
             for temp in temps:
-                temp = round(temp, 3)
                 print('Generating', args.num_samples, 'samples for', letter, category, 'at temperature', temp)
                 fname = fm.get_sample_fname(letter, category, nickname, temp)
                 if os.path.exists(fname):
