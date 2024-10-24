@@ -23,7 +23,7 @@ parser.add_argument('--num_jobs', '-t', type=int, default=1)
 parser.add_argument('--num_samples', '-s', type=int, default=100)
 parser.add_argument('--batch_size', '-b', type=int, default=4)
 
-EPS_GRID = 0.1
+EPS_GRID = 0.05
 LARGE_TEMP = 3.0
 LARGE_P = 0.99
 CACHE_MIN = 0.01
