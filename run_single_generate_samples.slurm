@@ -17,4 +17,4 @@ export HF_TOKEN=$(cat ~/.HF_TOKEN)
 
 echo "Running script"
 # Run the Python script
-time python3 generate_samples.py -m llama3.1 -n 10 -s 500
+time python3 generate_samples.py -m mistral -n 20 -s 100
