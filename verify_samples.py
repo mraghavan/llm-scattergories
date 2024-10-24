@@ -38,7 +38,7 @@ if __name__ == '__main__':
         # load all responses for all models
         for nickname in models:
             model_name = MODELS[nickname]
-            all_samples = fm.get_all_samples(model=model_name, max_temp=MAX_TEMPS[model_name])
+            all_samples = fm.get_all_samples(model=nickname, max_temp=MAX_TEMPS[model_name], letter=letter, category=category)
             for _, row in all_samples.iterrows():
                 fname = Path(row['fname']) # type: ignore
                 with open(fname, 'rb') as f:
