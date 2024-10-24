@@ -59,14 +59,8 @@ class PairwiseEquilibria:
             gamma: float,
             eps: float=1.0,
             ) -> tuple[int, int, float, float] | None:
-        if n1 > 0:
-            utility1 = self.get_utility(1, n1, n2, t1, t2, gamma)
-        else:
-            utility1 = 0
-        if n2 > 0:
-            utility2 = self.get_utility(2, n1, n2, t1, t2, gamma)
-        else:
-            utility2 = 0
+        utility1 = self.get_utility(1, n1, n2, t1, t2, gamma)
+        utility2 = self.get_utility(2, n1, n2, t1, t2, gamma)
         for player_start, player_end, new_temp in self.get_valid_deviations(n1, n2, t1, t2):
             dev_utility = self.get_deviating_utility(player_start, player_end, new_temp, n1, n2, t1, t2, gamma)
             assert 0 <= dev_utility <= 1
@@ -82,10 +76,10 @@ class PairwiseEquilibria:
     def get_utility(self, player: int, n1: int, n2: int, temp1: float, temp2: float, gamma: float) -> float:
         """Utility for n1, n2, temp1, temp2 for player 1 or 2."""
         assert player in [1, 2]
-        if player == 1:
-            assert n1 > 0
-        else:
-            assert n2 > 0
+        if player == 1 and n1 == 0:
+            return 0
+        elif player == 2 and n2 == 0:
+            return 0
         score = 0
         dists1 = self.samples1[temp1]
         dists2 = self.samples2[temp2]
@@ -202,15 +196,8 @@ class PairwiseEquilibria:
             # maybe_eq = True
             why_not = self.why_not_eq(n1, n2, t1, t2, gamma, eps)
             if not why_not:
-                # TODO consider returning 0 by convention
-                if n1 > 0:
-                    utility1 = self.get_utility(1, n1, n2, t1, t2, gamma)
-                else:
-                    utility1 = 0
-                if n2 > 0:
-                    utility2 = self.get_utility(2, n1, n2, t1, t2, gamma)
-                else:
-                    utility2 = 0
+                utility1 = self.get_utility(1, n1, n2, t1, t2, gamma)
+                utility2 = self.get_utility(2, n1, n2, t1, t2, gamma)
                 counts = {model1: n1, model2: n2}
                 temps = {model1: t1, model2: t2}
                 scores = {model1: utility1, model2: utility2}
@@ -297,19 +284,6 @@ def get_score_three_dists(
     for answer, count in new_dist.items():
         if answer not in verified_yes:
             continue
-        # if dist1 is dist2:
-            # current_dist2 = dist2.copy()
-            # current_dist2[answer] -= 1
-            # assert current_dist2[answer] >= 0
-            # current_dist3 = dist3
-        # elif dist1 is dist3:
-            # current_dist2 = dist2
-            # current_dist3 = dist3.copy()
-            # current_dist3[answer] -= 1
-            # assert current_dist3[answer] >= 0
-        # else:
-            # current_dist2 = dist2
-            # current_dist3 = dist3
         num_same_1 = dist1[answer]
         num_same_2 = dist2[answer]
         for k1, k2 in product(range(n1+1), range(n2+1)):
@@ -321,8 +295,6 @@ def get_score_three_dists(
                     * prob_of_k_of_m_red(k1, n1, num_same_1, num_total_1)\
                     * prob_of_k_of_m_red(k2, n2, num_same_2, num_total_2)\
                     * (1 + k1 + k2)**(-gamma)
-                    # * comb(num_same_1, k1) * comb(num_diff_1, n1-k1) / comb(num_same_1 + num_diff_1, n1)\
-                    # * comb(num_same_2, k2) * comb(num_diff_2, n2-k2) / comb(num_same_2 + num_diff_2, n2)\
     s = s / sum(new_dist.values())
     assert 0 <= s <= 1
     return s
@@ -330,203 +302,8 @@ def get_score_three_dists(
 def prob_of_k_of_m_red(k: int, m: int, n_red: int, n_total: int) -> float:
     return comb(n_red, k) * comb(n_total - n_red, m - k) / comb(n_total, m)
 
-def find_eqs(
-        samples1: dict[float, dict[tuple[str, str], dict[str, int]]],
-        samples2: dict[float, dict[tuple[str, str], dict[str, int]]],
-        verified_map: dict[tuple[str, str], set[str]],
-        n: int,
-        gamma: float=1.0,
-        ) -> list[dict]:
-    # Plan:
-    # First find candidates that are swap stable
-    # - (n1, t1, n2, n2) such that n1 prefers over (n1-1, t1, *n2+1, t2) and n2 prefers over (*n1+1, t1, n2-1, t2)
-    # Then check if they are Nash equilibria
-    # - For each model, a player can deviate to that model or the other model at another temperature (4 checks per candidate)
-    # Filter out multiple equilibria with n = 0
-    @lru_cache
-    def get_utility(player: int, n1: int, n2: int, temp1: float, temp2: float) -> float:
-        assert player in [1, 2]
-        assert n1 + n2 == n
-        if player == 1:
-            assert n1 > 0
-        elif player == 2:
-            assert n2 > 0
-        dists1 = samples1[temp1]
-        dists2 = samples2[temp2]
-        games = sorted(list(dists1.keys()))
-        score = 0
-        if player == 2:
-            dists2, dists1 = dists1, dists2
-            n2, n1 = n1, n2
-        n1 -= 1
-        for letter, category in games:
-            verified_yes = verified_map[(letter, category)]
-            score += get_score_two_dists(dists1[(letter, category)], dists2[(letter, category)], n1, n2, verified_yes, gamma)
-        score /= len(games)
-        return score
-
-    def get_utility_deviating(player: int, new_temp: float, n1: int, n2: int, temp1: float, temp2: float) -> float:
-        assert player in [1, 2]
-        assert n1 + n2 == n-1
-        if player == 1:
-            assert new_temp != temp1
-        if player == 2:
-            assert new_temp != temp2
-        dists1 = samples1[temp1]
-        dists2 = samples2[temp2]
-        games = sorted(list(dists1.keys()))
-        score = 0
-        if player == 2:
-            dist_new = samples2[new_temp]
-        else:
-            dist_new = samples1[new_temp]
-        for letter, category in games:
-            verified_yes = verified_map[(letter, category)]
-            score += get_score_three_dists(
-                    dist_new[(letter, category)],
-                    dists1[(letter, category)],
-                    dists2[(letter, category)],
-                    n1,
-                    n2,
-                    verified_yes,
-                    gamma,
-                    )
-        score /= len(games)
-        return score
-
-    swap_stable = []
-    temps1 = sorted(list(samples1.keys()))
-    temps2 = sorted(list(samples2.keys()))
-    for n1 in range(n+1):
-        n2 = n - n1
-        print(n1, n2)
-        for temp1, temp2 in product(temps1, temps2):
-            if n1 > 0:
-                utility1 = get_utility(1, n1, n2, temp1, temp2)
-                utility1_swap = get_utility(2, n1-1, n2+1, temp1, temp2)
-            else:
-                utility1 = 1
-                utility1_swap = 0
-            if n2 > 0:
-                utility2 = get_utility(2, n1, n2, temp1, temp2)
-                utility2_swap = get_utility(1, n1+1, n2-1, temp1, temp2)
-            else:
-                utility2 = 1
-                utility2_swap = 0
-            if utility1 >= utility1_swap and utility2 >= utility2_swap:
-                swap_stable.append((n1, temp1, n2, temp2))
-    print(swap_stable)
-    possible_eqs = []
-    for n1, temp1, n2, temp2 in swap_stable:
-        # check if player 1 can deviate
-        possible_eq = True
-        if n1 > 0:
-            for t1 in temps1:
-                if t1 == temp1:
-                    continue
-                if get_utility_deviating(1, t1, n1-1, n2, temp1, temp2) > get_utility(1, n1, n2, temp1, temp2):
-                    possible_eq = False
-                    break
-        if n1 > 0 and possible_eq:
-            for t2 in temps2:
-                if t2 == temp2:
-                    continue
-                if get_utility_deviating(2, t2, n1-1, n2, temp1, temp2) > get_utility(1, n1, n2, temp1, temp2):
-                    possible_eq = False
-                    break
-        # check if player 2 can deviate
-        if n2 > 0 and possible_eq:
-            for t2 in temps2:
-                if t2 == temp2:
-                    continue
-                if get_utility_deviating(2, t2, n1, n2-1, temp1, temp2) > get_utility(2, n1, n2, temp1, temp2):
-                    possible_eq = False
-                    break
-        if n2 > 0 and possible_eq:
-            for t1 in temps1:
-                if t1 == temp1:
-                    continue
-                if get_utility_deviating(1, t1, n1, n2-1, temp1, temp2) > get_utility(2, n1, n2, temp1, temp2):
-                    possible_eq = False
-                    break
-        if possible_eq:
-            possible_eqs.append((n1, temp1, n2, temp2))
-    print(possible_eqs)
-    actual_eqs = []
-    for n1, temp1, n2, temp2 in possible_eqs:
-        # convention: default to temp 0.0 if n = 0
-        if n1 == 0 and temp1 > 0:
-            continue
-        elif n2 == 0 and temp2 > 0:
-            continue
-        actual_eqs.append((n1, temp1, n2, temp2))
-    print(actual_eqs)
-    all_eq_info = []
-    for n1, temp1, n2, temp2 in actual_eqs:
-        eq_info = {}
-        eq_info['n1'] = n1
-        eq_info['temp1'] = temp1
-        eq_info['n2'] = n2
-        eq_info['temp2'] = temp2
-        print(n1, temp1, n2, temp2)
-        if n1 > 0:
-            print('Player 1 utility:', get_utility(1, n1, n2, temp1, temp2))
-            eq_info['utility1'] = get_utility(1, n1, n2, temp1, temp2)
-        else:
-            eq_info['utility1'] = np.nan
-        if n2 > 0:
-            print('Player 2 utility:', get_utility(2, n1, n2, temp1, temp2))
-            eq_info['utility2'] = get_utility(2, n1, n2, temp1, temp2)
-        else:
-            eq_info['utility2'] = np.nan
-        all_eq_info.append(eq_info)
-    return all_eq_info
-    # temps1 = sorted(samples1.keys())
-    # temps2 = sorted(samples2.keys())
-    # num_temps1 = len(temps1)
-    # num_temps2 = len(temps2)
-    # for num_1 in range(n):
-        # num_2 = n-1 - num_1
-        # # score if this player chooses the first model at some temp, num_1 choose the first model at a different temp, and num_2 choose the second model at some temp
-        # score_tensor1 = np.zeros((num_temps1, num_temps1, num_temps2))
-        # for m1_t1, m1_t2, m2_t in product(range(num_temps1), range(num_temps1), range(num_temps2)):
-            # for (letter, category) in verified_map:
-                # own_dist = samples1[temps1[m1_t1]][(letter, category)]
-                # dist1 = samples1[temps1[m1_t2]][(letter, category)]
-                # dist2 = samples2[temps2[m2_t]][(letter, category)]
-                # score_tensor1[m1_t1, m1_t2, m2_t] += get_score_three_dists(own_dist, dist1, dist2, num_1, num_2, gamma)
-        # # similar
-        # score_tensor2 = np.zeros((num_temps2, num_temps1, num_temps2))
-        # for m2_t1, m1_t, m2_t2 in product(range(num_temps2), range(num_temps1), range(num_temps2)):
-            # for (letter, category) in verified_map:
-                # own_dist = samples2[temps2[m2_t1]][(letter, category)]
-                # dist1 = samples1[temps1[m1_t]][(letter, category)]
-                # dist2 = samples2[temps2[m2_t2]][(letter, category)]
-                # score_tensor2[m2_t1, m1_t, m2_t2] += get_score_three_dists(own_dist, dist1, dist2, num_1, num_2, gamma)
-        # # look for eqs here
-
-
 def get_pairwise_fname(output_dir: str, model1: str, model2: str, n: int, gamma: float) -> str:
     return os.path.join(output_dir, f'{model1}_{model2}_n{n}_gamma{gamma:.2f}_pairwise.pkl')
-
-def get_eq_results(input_dir: str, model1: str, model2: str, n: int, gamma: float, max_temps: dict[str, float]) -> list[dict]:
-    temp1 = max_temps[MODELS[model1]]
-    temp2 = max_temps[MODELS[model2]]
-    LARGE_NUM = 30
-    instances = get_deterministic_instances(LARGE_NUM)
-    samples1, samples2, verified_map = get_all_instances(input_dir, instances, model1, model2, temp1, temp2, verifier)
-    all_eq_info = find_eqs(samples1, samples2, verified_map, n, gamma)
-    results = []
-    for d in all_eq_info:
-        results.append({
-                    'counts': {model1: d['n1'], model2: d['n2']},
-                    'temps': {model1: d['temp1'], model2: d['temp2']},
-                    'scores': {model1: d['utility1'], model2: d['utility2']},
-                    'converged': True,
-                    'gamma': gamma,
-                    'n': n,
-                 })
-    return results
 
 if __name__ == '__main__':
     args = parser.parse_args()
