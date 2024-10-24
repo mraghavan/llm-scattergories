@@ -233,7 +233,6 @@ if __name__ == '__main__':
         max_temperature = MAX_TEMPS[model_name]
         engine = CE.get_completion_engine(model_name, max_temperature=max_temperature, nickname=nickname, epsilon=0)
 
-        # temps = np.arange(0, max_temperature + EPS_GRID, EPS_GRID)
         temps = get_temps_clean(max_temperature)
         for letter, category in instances:
             cache_fname = fm.get_cache_fname(letter, category, nickname)
