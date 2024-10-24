@@ -184,6 +184,7 @@ class FileManager:
             }
 
     def get_all_samples(self, letter: str='', category: str='', model: str='', max_temp: float=0.0) -> pd.DataFrame:
+        category = self.safe_category(category)
         all_samples = list(self.locations.samples_dir.glob(f"*_samples.pkl"))
         data = [self.parse_sample_fname(fname) for fname in all_samples]
         for d, fname in zip(data, all_samples):
@@ -200,6 +201,7 @@ class FileManager:
         return df
 
     def get_all_verified(self, letter: str='', category: str='', verifier: str='') -> pd.DataFrame:
+        category = self.safe_category(category)
         all_samples = list(self.locations.samples_dir.glob(f"*_verified.pkl"))
         data = [self.parse_v_fname(fname) for fname in all_samples]
         for d, fname in zip(data, all_samples):
