@@ -20,7 +20,7 @@ OPT_MARKER = '1'
 def load_scores(scores_dir: str, models: list[str]):
     scores = []
     for fname in os.listdir(scores_dir):
-        if fname.endswith('.pkl'):
+        if fname.endswith('_info.pkl'):
             with open(f'{scores_dir}/{fname}', 'rb') as f:
                 new_scores = pickle.load(f)
             model = new_scores['model']
