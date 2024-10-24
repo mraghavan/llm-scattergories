@@ -2,19 +2,18 @@ import time
 import re
 import os
 import pickle
-import random
-from scat_utils import get_random_instances
+from pathlib import Path
+from scat_utils import get_deterministic_instances
 from verifier import Verifier
 import argparse
 from scat_utils import MAX_TEMPS, get_model_list
-from generate_samples import get_temps, get_sample_fname
+from file_manager import FileManager
 parser = argparse.ArgumentParser()
 parser.add_argument('--models', '-m', type=str, required=True)
 parser.add_argument('--verifier', '-v', type=str, default='')
 parser.add_argument('--num_instances', '-n', type=int, default=20)
 parser.add_argument('--use_mlx', '-x', action='store_true', default=False)
 parser.add_argument('--input_dir', '-i', type=str, default='./samples')
-parser.add_argument('--output_dir', '-o', type=str, default='./samples')
 parser.add_argument('--batch_size', '-b', type=int, default=4)
 
 def get_v_fname(output_dir: str, letter: str, category: str, v_name: str) -> str:
@@ -28,9 +27,9 @@ if __name__ == '__main__':
         from completion_mlx import MODELS, CompletionEngineMLX as CEClass
     else:
         from completion_hf import MODELS, CompletionEngineHF as CEClass
+    fm = FileManager.from_args(samples_dir=args.input_dir)
     models = get_model_list(args.models, set(MODELS.keys()))
-    random.seed(0)
-    instances = get_random_instances(args.num_instances)
+    instances = get_deterministic_instances(args.num_instances)
     verifier_model_name = MODELS[args.verifier]
     verifier = Verifier(verifier_model_name, CEClass, nickname=args.verifier)
     for letter, category in instances:
@@ -39,23 +38,18 @@ if __name__ == '__main__':
         # load all responses for all models
         for nickname in models:
             model_name = MODELS[nickname]
-            temps = get_temps(MAX_TEMPS[model_name])
-            for temp in temps:
-                temp = round(temp, 3)
-                fname = get_sample_fname(args.input_dir, letter, category, nickname, temp)
-                if not os.path.exists(fname):
-                    print(f'File {fname} does not exist')
-                    continue
+            all_samples = fm.get_all_samples(model=model_name, max_temp=MAX_TEMPS[model_name])
+            for _, row in all_samples.iterrows():
+                fname = Path(row['fname']) # type: ignore
                 with open(fname, 'rb') as f:
                     samples = pickle.load(f)
                 dist = samples['dist']
                 to_be_verified.update(dist.keys())
-        vfname = get_v_fname(args.output_dir, letter, category, args.verifier)
+        vfname = fm.get_v_fname(letter, category, args.verifier)
         if os.path.exists(vfname):
-            with open(vfname, 'rb') as f:
-                verified = pickle.load(f)
-                verified_yes = verified['yes']
-                verified_no = verified['no']
+            verified = fm.load_verified(letter, category, args.verifier)
+            verified_yes = verified['yes']
+            verified_no = verified['no']
         else:
             verified_yes = set()
             verified_no = set()
@@ -75,6 +69,4 @@ if __name__ == '__main__':
                 verified_yes.add(answer)
             else:
                 verified_no.add(answer)
-        with open(vfname, 'wb') as f:
-            print(f'Saving verified samples to {vfname}')
-            pickle.dump({'yes': verified_yes, 'no': verified_no}, f)
+        fm.write_verified(letter, category, args.verifier, {'yes': verified_yes, 'no': verified_no})
