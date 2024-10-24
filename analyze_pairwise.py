@@ -9,6 +9,7 @@ from math import comb
 from scat_utils import get_deterministic_instances
 from generate_samples import get_temps_clean, get_sample_fname, EPS_GRID
 from verify_samples import get_v_fname
+from file_manager import FileManager
 parser = argparse.ArgumentParser()
 parser.add_argument('--models', '-m', type=str, required=True)
 parser.add_argument('--num_instances', '-n', type=int, default=20)
@@ -294,6 +295,7 @@ if __name__ == '__main__':
         from completion_mlx import MODELS
     else:
         from completion_hf import MODELS
+    fm = FileManager.from_args(samples_dir=args.input_dir, info_dir=args.output_dir)
     # get models
     models = get_model_list(args.models, set(MODELS.keys()))
     assert len(models) == 2
@@ -307,14 +309,12 @@ if __name__ == '__main__':
     pairwise_eq_finder = PairwiseEquilibria(model1, model2, args.input_dir, nicknames_to_max_temps)
 
     for n in ns:
-        fname = get_pairwise_fname(args.output_dir, model1, model2, n, gamma)
+        fname = fm.get_pairwise_fname(model1, model2, n, gamma)
         if os.path.exists(fname):
             print('Skipping', fname)
             continue
         actual_eqs = pairwise_eq_finder.find_eqs(n, gamma, eps=0.01)
-        with open(fname, 'wb') as f:
-            print('Writing to', fname)
-            pickle.dump(actual_eqs, f)
+        fm.write_pairwise(model1, model2, n, gamma, actual_eqs)
 
 
 
