@@ -6,7 +6,7 @@ import random
 from scat_utils import get_random_instances
 from verifier import Verifier
 import argparse
-from generate_trees import get_model_list, MAX_TEMPS
+from scat_utils import MAX_TEMPS, get_model_list
 from generate_samples import get_temps, get_sample_fname
 parser = argparse.ArgumentParser()
 parser.add_argument('--models', '-m', type=str, required=True)
