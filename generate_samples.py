@@ -4,13 +4,14 @@ import sys
 import gc
 import torch
 import os
-import re
 import pickle
 import random
 from collections import Counter
 from completion_base import CompletionEngine, softmax_temperature, softmax_temperature_2d
-from scat_utils import get_scat_prompt, get_random_instances, standardize_str
+from scat_utils import get_scat_prompt, get_deterministic_instances, standardize_str
+from file_manager import FileManager
 import argparse
+from scat_utils import get_model_list, MAX_TEMPS, get_scat_prompt
 parser = argparse.ArgumentParser()
 parser.add_argument('--models', '-m', type=str, required=True)
 parser.add_argument('--verifier', '-v', type=str, default='')
@@ -42,8 +43,6 @@ class SortedLogitsAndTokens():
         self.logits = np.array(logits[self.tokens], copy=True)
         # print('Size reduction:', logits.size, '->', self.tokens.size, '(', self.tokens.size / logits.size, ')')
 
-# TODO move this
-from generate_trees import get_scat_prompt, get_model_list, MAX_TEMPS
 
 def get_new_sample_prefix(temperature: float, top_p: float, cache: dict[tuple, SortedLogitsAndTokens]) -> tuple[list[int], float]:
     sample = ()
@@ -209,17 +208,6 @@ def generate_samples(
     return info
 
 #TODO centralize this
-def get_sample_fname(output_dir: str, letter: str, category: str, model_name: str, temp: float) -> str:
-    category = re.sub('[^a-zA-Z0-9 ]+', '', category)
-    category = re.sub(' ', '_', category)
-    return f'{output_dir}/{letter}_{category}_{model_name}_{temp}_samples.pkl'
-
-#TODO centralize this
-def get_cache_fname(output_dir: str, letter: str, category: str, model_name: str) -> str:
-    category = re.sub('[^a-zA-Z0-9 ]+', '', category)
-    category = re.sub(' ', '_', category)
-    return f'{output_dir}/{letter}_{category}_{model_name}_cache.pkl'
-
 def get_temps(max_temp: float) -> np.ndarray:
     return np.arange(0, max_temp + EPS_GRID, EPS_GRID)
 
@@ -233,14 +221,14 @@ if __name__ == '__main__':
         from completion_mlx import CompletionEngineMLX as CE, MODELS
     else:
         from completion_hf import CompletionEngineHF as CE, MODELS
+    fm = FileManager.from_args(samples_dir=args.output_dir)
     models = get_model_list(args.models, set(MODELS.keys()))
     if args.job_num >= len(models):
         print(f'Job number {args.job_num} is out of range')
         sys.exit(0)
     models = models[args.job_num::args.num_jobs]
     print(f'Models for job {args.job_num}: {models}')
-    random.seed(0)
-    random_instances = get_random_instances(args.num_instances)
+    instances = get_deterministic_instances(args.num_instances)
     for nickname in models:
         print('Model:', nickname)
         model_name = MODELS[nickname]
@@ -248,8 +236,8 @@ if __name__ == '__main__':
         engine = CE.get_completion_engine(model_name, max_temperature=max_temperature, nickname=nickname, epsilon=0)
 
         temps = np.arange(0, max_temperature + EPS_GRID, EPS_GRID)
-        for letter, category in random_instances:
-            cache_fname = get_cache_fname(args.output_dir, letter, category, nickname)
+        for letter, category in instances:
+            cache_fname = fm.get_cache_fname(letter, category, nickname)
             if os.path.exists(cache_fname):
                 with open(cache_fname, 'rb') as f:
                     cache = pickle.load(f)
@@ -258,7 +246,7 @@ if __name__ == '__main__':
             for temp in temps:
                 temp = round(temp, 3)
                 print('Generating', args.num_samples, 'samples for', letter, category, 'at temperature', temp)
-                fname = get_sample_fname(args.output_dir, letter, category, nickname, temp)
+                fname = fm.get_sample_fname(letter, category, nickname, temp)
                 if os.path.exists(fname):
                     existing_info = pickle.load(open(fname, 'rb'))
                 else:
@@ -271,12 +259,8 @@ if __name__ == '__main__':
                 info = generate_samples(engine, letter, category, temp, args.num_samples, batch_size = args.batch_size, cache=cache, existing_info=existing_info)
                 elapsed = time.time() - start
                 print(f'Elapsed time: {elapsed:.2f}')
-                print('Saving to', fname)
-                with open(fname, 'wb') as f:
-                    pickle.dump(info, f)
-                print('Saving cache to', cache_fname)
-                with open(cache_fname, 'wb') as f:
-                    pickle.dump(cache, f)
+                fm.write_samples(letter, category, nickname, temp, info)
+                fm.write_cache(letter, category, nickname, cache)
         del engine
         gc.collect()
         if torch.cuda.is_available():
