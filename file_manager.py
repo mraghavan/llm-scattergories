@@ -54,6 +54,10 @@ class FileManager:
         category = re.sub(' ', '_', category)
         return category
 
+    def load_from_path(self, fname: Path) -> Any:
+        with open(fname, 'rb') as f:
+            return pickle.load(f)
+
     def get_sample_fname(self, letter: str, category: str, model_name: str, temp: float) -> Path:
         category = self.safe_category(category)
         return self.locations.samples_dir / f'{letter}_{category}_{model_name}_{temp}_samples.pkl'
@@ -232,6 +236,8 @@ class FileManager:
     def get_all_pairwise_info(self, model1: str='', model2: str='', n: int=0, gamma: float=0.0) -> pd.DataFrame:
         all_samples = list(self.locations.info_dir.glob(f"*_pairwise.pkl"))
         data = [self.parse_pairwise_fname(fname) for fname in all_samples]
+        if len(data) == 0:
+            return pd.DataFrame()
         # always in sorted order
         if model1 and model2 and model1 > model2:
             model1, model2 = model2, model1
