@@ -128,8 +128,11 @@ if __name__ == '__main__':
     # get models
     fm = FileManager.from_args(samples_dir=args.input_dir, info_dir=args.output_dir)
     models = get_model_list(args.models, set(MODELS.keys()))
-    ns = [1, 2, 3, 5, 10, 15, 20]
+    ns = range(1, 16)
     gammas = [0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0]
+    default_gamma = 1.0
+    default_n = 10
+    ns_and_gammas = [(n, default_gamma) for n in ns] + [(default_n, gamma) for gamma in gammas]
     all_verified = fm.get_all_verified(verifier=args.verifier)
     verified_instances = set(all_verified[['letter', 'category']].drop_duplicates().itertuples(index=False, name=None))
     for model in models:
@@ -154,7 +157,7 @@ if __name__ == '__main__':
         sample_sizes = {}
         # assume temps is the same for all (letter, category pairs)
         temps = sorted(list(all_temps))
-        for n, gamma in product(ns, gammas):
+        for n, gamma in ns_and_gammas:
             # if n == 1, don't need to do all this
             info_fname = fm.get_info_fname(model, n, gamma)
             if os.path.exists(info_fname):
