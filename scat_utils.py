@@ -69,6 +69,15 @@ def get_model_list(models: str, allowed_models: set[str]) -> list[str]:
             raise ValueError(f'Invalid model: {model}')
     return sorted(model_list)
 
+def get_model_list(models: str, allowed_models: set[str]) -> list[str]:
+    if models == 'all':
+        return sorted(list(allowed_models))
+    model_list = models.split(',')
+    for model in model_list:
+        if model not in allowed_models:
+            raise ValueError(f'Invalid model: {model}')
+    return sorted(model_list)
+
 def get_random_letter():
     return random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZ')
 
@@ -104,6 +113,7 @@ def get_eval_prompt(answer: str, category: str, tokenizer):
     messages = [
             {"role": "system", "content": "You are a helpful assistant. Answer in as few words as possible, with no explanations."},
             {"role": "user", "content": EVAL_INSTRUCTIONS},
+            {"role": "assistant", "content": "I understand."},
             ]
     for ans, response in EVAL_EXAMPLES:
         messages.append({"role": "user", "content": ans})

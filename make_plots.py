@@ -1,6 +1,5 @@
-# from analyze_games import get_score_fname, generate_score_data
 import matplotlib.patches as mpatches
-from generate_trees import get_model_list
+from scat_utils import get_model_list
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
