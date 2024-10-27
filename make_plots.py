@@ -224,13 +224,13 @@ def plot_sw_and_nash_temp_over_axis(
     handles += plot_temp_over_axis_helper(all_scores, metric='opt', axis=axis, marker=OPT_MARKER)
     make_legend(handles)
     # plt.legend(handles=new_handles, ncol=2, columnspacing=-1.5)
-    plt.xlabel(axis)
     plt.ylabel('Temperature')
     if axis == 'gamma':
         axis_name = r'\gamma'
     else:
         axis_name = axis
-    plt.title(f'Optimal and Nash equilibrium temperatures over ${axis_name}$')
+    plt.xlabel(f'${axis_name}$')
+    plt.title(f'Optimal and equilibrium temperatures over ${axis_name}$')
     fname = f'img/opt_and_eq_temp_over_{axis}.png'
     if SAVE:
         print(f'Saving to {fname}')
@@ -248,16 +248,13 @@ def plot_sw_and_nash_welfare_over_axis(
     plt.gca().set_prop_cycle(None)
     handles += plot_temp_over_axis_helper(all_scores, metric='opt_util', axis=axis, marker=OPT_MARKER)
     make_legend(handles)
-    if axis == 'n':
-        plt.xlabel('$n$')
-    else:
-        plt.xlabel(axis)
     plt.ylabel('Utility')
     if axis == 'gamma':
         axis_name = r'\gamma'
     else:
         axis_name = axis
-    plt.title(f'Optimal and Nash equilibrium utility over ${axis_name}$')
+    plt.xlabel(f'${axis_name}$')
+    plt.title(f'Optimal and equilibrium utility over ${axis_name}$')
     fname = f'img/opt_and_eq_sw_over_{axis}.png'
     if SAVE:
         print(f'Saving to {fname}')
