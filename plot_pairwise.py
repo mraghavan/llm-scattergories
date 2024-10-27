@@ -1,4 +1,7 @@
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
+import matplotlib as mpl
 from file_manager import FileManager
 from scat_utils import get_model_list
 import argparse
@@ -44,29 +47,37 @@ def plot_results(results, fm: FileManager):
                 temps[n][model].append(result['temps'][model])
     if gamma == -1:
         gamma = 1.0
+    cmap = mpl.colormaps['copper']
+    norm = mcolors.Normalize(vmin=min(ns), vmax=max(ns))
     for n in ns:
         if n not in counts:
             print('No results for n =', n)
             continue
         ls = [counts[n][model] for model in models]
-        plt.scatter(ls[0], ls[1], color='k')
+        plt.scatter(ls[0], ls[1], color=cmap(norm(n)))
     plt.xlabel(models[0])
     plt.ylabel(models[1])
     xlim = plt.xlim()
     ylim = plt.ylim()
 
     # Find the min and max of both axes
-    min_val = min(xlim[0], ylim[0])
+    # min_val = min(xlim[0], ylim[0])
+    min_val = -0.5
     max_val = max(xlim[1], ylim[1])
-    # plot diagonal lines with slope -1 for each n
-    for n in ns:
-        plt.plot([0, n], [n, 0], 'k--', lw=0.3)
     plt.title('Market share for each model at equilibrium')
 
     # Set both axes to the same limits
     plt.axis('square')
     plt.xlim(min_val, max_val)
     plt.ylim(min_val, max_val)
+    for n in ns:
+        plt.plot([0, n], [n, 0], ls='--', lw=0.3, color=cmap(norm(n)))
+
+    ax = plt.gca()
+    sm = cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])  # You need to set an array for ScalarMappable
+    cbar = plt.colorbar(sm, ax=ax)
+    cbar.set_label("$n$")
     # equalize axes
     fname_base = fm.locations.plots_dir / ('_'.join(models) + f'_gamma_{gamma}' + '_pairwise_{tag}.png')
     fname = str(fname_base).format(tag='counts_scatter')
