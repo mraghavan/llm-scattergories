@@ -187,7 +187,14 @@ class FileManager:
             'gamma': gamma
             }
 
-    def get_all_samples(self, letter: str='', category: str='', model: str='', max_temp: float=0.0) -> pd.DataFrame:
+    def get_all_samples(
+            self,
+            letter: str='',
+            category: str='',
+            model: str='',
+            models: list = [],
+            max_temp: float=0.0) -> pd.DataFrame:
+        assert not (model and models)
         category = self.safe_category(category)
         all_samples = list(self.locations.samples_dir.glob(f"*_samples.pkl"))
         data = [self.parse_sample_fname(fname) for fname in all_samples]
@@ -200,6 +207,8 @@ class FileManager:
             df = df[df['category'] == category]
         if model:
             df = df[df['model'] == model]
+        if models:
+            df = df[df['model'].isin(models)]
         if max_temp > 0:
             df = df[df['temperature'] <= max_temp]
         return df
