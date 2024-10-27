@@ -3,7 +3,6 @@ import re
 import os
 import pickle
 from pathlib import Path
-from scat_utils import get_deterministic_instances
 from verifier import Verifier
 import argparse
 from scat_utils import MAX_TEMPS, get_model_list
@@ -11,7 +10,6 @@ from file_manager import FileManager
 parser = argparse.ArgumentParser()
 parser.add_argument('--models', '-m', type=str, required=True)
 parser.add_argument('--verifier', '-v', type=str, default='')
-parser.add_argument('--num_instances', '-n', type=int, default=20)
 parser.add_argument('--use_mlx', '-x', action='store_true', default=False)
 parser.add_argument('--input_dir', '-i', type=str, default='./samples')
 parser.add_argument('--batch_size', '-b', type=int, default=4)
@@ -29,7 +27,8 @@ if __name__ == '__main__':
         from completion_hf import MODELS, CompletionEngineHF as CEClass
     fm = FileManager.from_args(samples_dir=args.input_dir)
     models = get_model_list(args.models, set(MODELS.keys()))
-    instances = get_deterministic_instances(args.num_instances)
+    df = fm.get_all_samples(models=models)
+    instances = sorted(list(df[['letter', 'category']].drop_duplicates().itertuples(index=False, name=None)))
     verifier_model_name = MODELS[args.verifier]
     verifier = Verifier(verifier_model_name, CEClass, nickname=args.verifier)
     for letter, category in instances:
