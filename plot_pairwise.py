@@ -1,10 +1,23 @@
 import matplotlib.pyplot as plt
-from typing import Iterable
-import os
-import pickle
-from analyze_pairwise import get_pairwise_fname
+from file_manager import FileManager
+from scat_utils import get_model_list
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument('--models', '-m', type=str, required=True)
+parser.add_argument('--use_mlx', '-x', action='store_true', default=False)
+parser.add_argument('--scores_dir', '-s', type=str, default='./info')
+parser.add_argument('--no_save', '-n', action='store_true', default=False)
+SAVE = True
 
-def plot_results(results):
+def save_if_needed(fname: str, to_save: bool):
+    if to_save:
+        print('Saving to', fname)
+        plt.savefig(fname, dpi=300)
+        plt.clf()
+    else:
+        plt.show()
+
+def plot_results(results, fm: FileManager):
     ns = sorted(results.keys())
     scores = {}
     counts = {}
@@ -45,18 +58,19 @@ def plot_results(results):
     # Find the min and max of both axes
     min_val = min(xlim[0], ylim[0])
     max_val = max(xlim[1], ylim[1])
-    plt.title('Counts for each model at equilibrium')
+    # plot diagonal lines with slope -1 for each n
+    for n in ns:
+        plt.plot([0, n], [n, 0], 'k--', lw=0.3)
+    plt.title('Market share for each model at equilibrium')
 
     # Set both axes to the same limits
     plt.axis('square')
     plt.xlim(min_val, max_val)
     plt.ylim(min_val, max_val)
     # equalize axes
-    fname_base = 'img/' + '_'.join(models) + f'_gamma_{gamma}' + '_pairwise_{tag}.png'
-    fname = fname_base.format(tag='counts_scatter')
-    print('Saving to', fname)
-    # plt.savefig(fname)
-    plt.show()
+    fname_base = fm.locations.plots_dir / ('_'.join(models) + f'_gamma_{gamma}' + '_pairwise_{tag}.png')
+    fname = str(fname_base).format(tag='counts_scatter')
+    save_if_needed(fname, SAVE)
     markers = {
             models[0]: '^',
             models[1]: 'v',
@@ -84,10 +98,8 @@ def plot_results(results):
     plt.xlabel('$n$')
     plt.ylabel('Temperature')
     plt.legend()
-    fname = fname_base.format(tag='temp')
-    print('Saving to', fname)
-    # plt.savefig(fname)
-    plt.show()
+    fname = str(fname_base).format(tag='temp')
+    save_if_needed(fname, SAVE)
 
     # do the same thing for scores
     flags = {
@@ -109,10 +121,8 @@ def plot_results(results):
     plt.xlabel('$n$')
     plt.ylabel('Utility')
     plt.legend()
-    fname = fname_base.format(tag='utility')
-    print('Saving to', fname)
-    # plt.savefig(fname)
-    plt.show()
+    fname = str(fname_base).format(tag='utility')
+    save_if_needed(fname, SAVE)
     # for n in ns:
         # if not results[n]['converged']:
             # for model in results[n]['scores']:
@@ -175,30 +185,29 @@ def plot_results(results):
     # plt.savefig(fname, dpi=300)
 
 def load_eqs(
-        folder: str,
         model1: str,
         model2: str,
-        ns: Iterable[int],
         gamma: float,
+        fm: FileManager,
         ):
     results = {}
-    for n in ns:
-        fname = get_pairwise_fname(folder, model1, model2, n, gamma)
-        if not os.path.exists(fname):
-            print(f'File {fname} does not exist')
-            continue
-        with open(fname, 'rb') as f:
-            results[n] = pickle.load(f)
+    df = fm.get_all_pairwise_info(model1=model1, model2=model2, gamma=gamma)
+    for _, row in df.iterrows():
+        n = row['n']
+        results[n] = fm.load_from_path(row['fname']) # type: ignore
     return results
 
 if __name__ == '__main__':
-    ns = range(1, 21)
-    # models_to_compare = ['llama3', 'phi3.5']
-    # results = load_eqs('./info', 'llama3', 'phi3.5', ns, 1.0)
-    model1 = 'llama3.1'
-    model2 = 'nemotron'
-    results = load_eqs('./info', model1, model2, ns, 1.0)
-
-    # results = find_eqs_pairwise(models_to_compare, ns, gamma=0.5)
-    # print(results)
-    plot_results(results)
+    args = parser.parse_args()
+    if args.use_mlx:
+        from completion_mlx import MODELS
+    else:
+        from completion_hf import MODELS
+    if args.no_save:
+        SAVE = False
+    models = get_model_list(args.models, set(MODELS.keys()))
+    assert len(models) == 2
+    model1, model2 = sorted(models)
+    fm = FileManager.from_base('.')
+    results = load_eqs(model1, model2, 1.0, fm)
+    plot_results(results, fm)
