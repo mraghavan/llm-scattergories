@@ -22,9 +22,9 @@ def load_samples(model: str, max_temp: float, fm: FileManager):
     all_samples = fm.get_all_samples(model=model)
     samples = {}
     for _, row in all_samples.iterrows():
-        if row['temp'] > max_temp:
+        if row['temperature'] > max_temp:
             continue
-        t = row['temp']
+        t = row['temperature']
         if t not in samples:
             samples[t] = {}
         path = Path(row['fname']) # type: ignore
@@ -289,7 +289,7 @@ if __name__ == '__main__':
     model2 = models[1]
     print('Models:', model1, model2)
     verifier = args.verifier
-    ns = range(1, 21)
+    ns = range(1, 16)
     gamma = 1.0
     nicknames_to_max_temps = {nickname: MAX_TEMPS[real_name] for nickname, real_name in MODELS.items() if real_name in MAX_TEMPS}
     pairwise_eq_finder = PairwiseEquilibria(model1, model2, verifier, fm, nicknames_to_max_temps)
