@@ -4,7 +4,7 @@ from pathlib import Path
 from functools import lru_cache
 import pickle
 from scat_utils import MAX_TEMPS, get_model_list
-from itertools import product
+from itertools import product, combinations
 import argparse
 from math import comb
 from file_manager import FileManager
@@ -284,17 +284,19 @@ if __name__ == '__main__':
     fm = FileManager.from_args(samples_dir=args.input_dir, info_dir=args.output_dir)
     # get models
     models = get_model_list(args.models, set(MODELS.keys()))
-    assert len(models) == 2
-    model1 = models[0]
-    model2 = models[1]
-    print('Models:', model1, model2)
-    verifier = args.verifier
+    # get all pairs of models
+    # should be n choose 2 of these
+    pairs = list(combinations(models, 2))
     ns = range(1, 16)
-    gamma = 1.0
+    jobs = list(product(ns, pairs))
+    my_jobs = jobs[args.job_num::args.total_jobs]
     nicknames_to_max_temps = {nickname: MAX_TEMPS[real_name] for nickname, real_name in MODELS.items() if real_name in MAX_TEMPS}
-    pairwise_eq_finder = PairwiseEquilibria(model1, model2, verifier, fm, nicknames_to_max_temps)
+    for n, (model1, model2) in my_jobs:
+        print('Models:', model1, model2)
+        verifier = args.verifier
+        gamma = 1.0
+        pairwise_eq_finder = PairwiseEquilibria(model1, model2, verifier, fm, nicknames_to_max_temps)
 
-    for n in ns:
         fname = fm.get_pairwise_fname(model1, model2, n, gamma)
         if os.path.exists(fname):
             print('Skipping', fname)
