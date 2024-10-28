@@ -55,6 +55,7 @@ def plot_results(results, fm: FileManager):
             continue
         ls = [counts[n][model] for model in models]
         plt.scatter(ls[0], ls[1], color=cmap(norm(n)))
+        plt.plot([min(ls[0]), max(ls[0])], [max(ls[1]), min(ls[1])], ls='--', lw=0.3, color=cmap(norm(n)))
     plt.xlabel(models[0])
     plt.ylabel(models[1])
     xlim = plt.xlim()
@@ -70,8 +71,6 @@ def plot_results(results, fm: FileManager):
     plt.axis('square')
     plt.xlim(min_val, max_val)
     plt.ylim(min_val, max_val)
-    for n in ns:
-        plt.plot([0, n], [n, 0], ls='--', lw=0.3, color=cmap(norm(n)))
 
     ax = plt.gca()
     sm = cm.ScalarMappable(cmap=cmap, norm=norm)
