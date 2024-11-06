@@ -7,6 +7,7 @@ import argparse
 from math import comb
 from file_manager import FileManager
 from scat_utils import MAX_TEMPS, get_model_list
+from typing import Optional
 parser = argparse.ArgumentParser()
 parser.add_argument('--models', '-m', type=str, required=True)
 parser.add_argument('--verifier', '-v', type=str, default='llama3.1')
@@ -17,7 +18,7 @@ parser.add_argument('--output_dir', '-o', type=str, default='./info')
 def get_info_fname(output_dir: str, model: str, n: int, gamma: float) -> str:
     return os.path.join(output_dir, f'{model}_n{n}_gamma{gamma:.2f}_info.pkl')
 
-def get_eq(scores: np.ndarray, temps: list[float]):
+def get_eq(scores: np.ndarray, temps: list[float], symmetric_welfare: Optional[np.ndarray]=None):
     info = {}
     eq_inds = []
     max_indices = np.argmax(scores, axis=0)
@@ -39,6 +40,7 @@ def get_eq(scores: np.ndarray, temps: list[float]):
             if abs(i - ind) <= 1:
                 print('Nash equilibrium: ', temps[i], 'Avg. welfare', scores[i, ind])
                 eq_inds.append(i)
+                eq_inds.append(ind)
         # make sure the eq inds are contiguous
         if len(eq_inds) > 0:
             info['nash_eq_exact'] = False
@@ -53,15 +55,27 @@ def get_eq(scores: np.ndarray, temps: list[float]):
     if len(eq_inds) == 0:
         info['nash_eq'] = np.NaN
         info['nash_eq_util'] = np.NaN
+        info['nash_eq_sw'] = np.NaN
     else:
         fake_scores = scores.copy()
         fake_scores[eq_inds[0], eq_inds[0]] = 0
         print('Margin:', scores[eq_inds[0], eq_inds[0]] - np.max(fake_scores[:, eq_inds[0]]))
         info['nash_eq'] = np.mean([temps[i] for i in eq_inds])
         info['nash_eq_util'] = np.mean([scores[i, i] for i in eq_inds])
+        if symmetric_welfare is None:
+            info['nash_eq_sw'] = info['nash_eq_util']
+        else:
+            info['nash_eq_sw'] = np.mean([symmetric_welfare[i] for i in eq_inds])
     symmetric = [scores[i, i] for i in range(len(temps))]
-    info['opt'] = temps[np.argmax(symmetric)]
-    info['opt_util'] = np.max(symmetric)
+    if symmetric_welfare is None:
+        info['opt'] = temps[np.argmax(symmetric)]
+        info['opt_util'] = np.max(symmetric)
+        info['opt_sw'] = np.max(symmetric)
+    else:
+        info['opt'] = temps[np.argmax(symmetric_welfare)]
+        temp_ind = np.argmax(symmetric_welfare)
+        info['opt_util'] = symmetric[temp_ind]
+        info['opt_sw'] = symmetric_welfare[temp_ind]
     hit_max_temp = scores[-1,:] - np.max(scores, axis=0)
     a_temps = np.array(temps)
     if any(hit_max_temp >= 0):
@@ -129,9 +143,9 @@ if __name__ == '__main__':
     fm = FileManager.from_args(samples_dir=args.input_dir, info_dir=args.output_dir)
     models = get_model_list(args.models, set(MODELS.keys()))
     ns = range(1, 16)
-    gammas = [0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0]
+    gammas = [0.1, 0.2, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 10.0]
     default_gamma = 1.0
-    default_n = 10
+    default_n = 3
     ns_and_gammas = [(n, default_gamma) for n in ns] + [(default_n, gamma) for gamma in gammas]
     all_verified = fm.get_all_verified(verifier=args.verifier)
     verified_instances = set(all_verified[['letter', 'category']].drop_duplicates().itertuples(index=False, name=None))
@@ -153,7 +167,6 @@ if __name__ == '__main__':
                 sample_map[(letter, category)][temp] = samples['dist']
         print(f'Number of instances for model {model}: {len(model_instances)}')
         # compute scores
-        all_scores = {}
         sample_sizes = {}
         # assume temps is the same for all (letter, category pairs)
         temps = sorted(list(all_temps))
@@ -163,7 +176,7 @@ if __name__ == '__main__':
             if os.path.exists(info_fname):
                 continue
             scores = np.zeros((len(temps), len(temps)))
-            all_scores[n] = scores
+            gamma_1_scores = np.zeros(len(temps))
             ss = np.zeros((len(temps), len(temps)), dtype=int)
             sample_sizes[n] = ss
             for (i, t1), (j, t2) in product(enumerate(temps), repeat=2):
@@ -177,8 +190,21 @@ if __name__ == '__main__':
                             )
                     scores[i, j] +=  score / len(model_instances)
                     ss[i, j] += sample_size
+            for i, t in enumerate(temps):
+                for letter, category in model_instances:
+                    score, sample_size = compute_scores(
+                            verifier_map[(letter, category)],
+                            sample_map[(letter, category)][t],
+                            sample_map[(letter, category)][t],
+                            n,
+                            gamma=1.0,
+                            )
+                    gamma_1_scores[i] += score / len(model_instances)
             print(f'{model} {n} {gamma}')
             info = {'model': model, 'n': n, 'gamma': gamma, 'games': model_instances, 'max_temperature': max(temps)}
-            info.update(get_eq(scores, temps))
+            if gamma < 1.0:
+                info.update(get_eq(scores, temps))
+            else:
+                info.update(get_eq(scores, temps, symmetric_welfare=gamma_1_scores))
             fm.write_info(model, n, gamma, info)
             print('CI bound:', np.max(1.96 * np.sqrt(scores * (1 - scores) / ss)))
