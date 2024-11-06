@@ -5,6 +5,7 @@ import matplotlib as mpl
 from file_manager import FileManager
 from scat_utils import get_model_list
 import argparse
+from itertools import combinations
 parser = argparse.ArgumentParser()
 parser.add_argument('--models', '-m', type=str, required=True)
 parser.add_argument('--use_mlx', '-x', action='store_true', default=False)
@@ -25,7 +26,6 @@ def plot_results(results, fm: FileManager):
     scores = {}
     counts = {}
     temps = {}
-    all_models = set()
     gamma = -1
     # first plot: scatter eq counts
     models = sorted(list(results[ns[0]][0]['scores'].keys()))
@@ -65,7 +65,7 @@ def plot_results(results, fm: FileManager):
     # min_val = min(xlim[0], ylim[0])
     min_val = -0.5
     max_val = max(xlim[1], ylim[1])
-    plt.title('Market share for each model at equilibrium')
+    plt.title('Market share at equilibrium')
 
     # Set both axes to the same limits
     plt.axis('square')
@@ -133,66 +133,6 @@ def plot_results(results, fm: FileManager):
     plt.legend()
     fname = str(fname_base).format(tag='utility')
     save_if_needed(fname, SAVE)
-    # for n in ns:
-        # if not results[n]['converged']:
-            # for model in results[n]['scores']:
-                # all_models.add(model)
-                # if model not in scores:
-                    # scores[model] = []
-                # scores[model].append(None)
-                # if model not in counts:
-                    # counts[model] = []
-                # counts[model].append(None)
-                # if model not in temps:
-                    # temps[model] = []
-                # temps[model].append(None)
-            # continue
-        # for result in results[n]:
-            # for model in result['scores']:
-                # all_models.add(model)
-                # if model not in counts:
-                    # counts[model] = []
-                # counts[model].append(result['counts'][model]/n)
-                # if model not in scores:
-                    # scores[model] = []
-                # if counts[model][-1] > 0:
-                    # scores[model].append(result['scores'][model])
-                # else:
-                    # scores[model].append(None)
-                # if model not in temps:
-                    # temps[model] = []
-                # if counts[model][-1] > 0:
-                    # temps[model].append(result['temps'][model])
-                # else:
-                    # temps[model].append(None)
-    # for model in scores:
-        # plt.plot(ns, scores[model], label=model, marker='o')
-    # plt.legend()
-    # plt.xlabel('n')
-    # plt.ylabel('Utility')
-    # fname_base = 'img/' + '_'.join(sorted(list(all_models))) + '_pairwise_{tag}.png'
-    # print(all_models)
-    # fname = fname_base.format(tag='utility')
-    # print('Saving to', fname)
-    # plt.savefig(fname, dpi=300)
-    # plt.clf()
-    # for model in counts:
-        # plt.plot(ns, counts[model], label=model, marker='o')
-    # plt.legend()
-    # plt.xlabel('n')
-    # plt.ylabel('share of equilibria')
-    # fname = fname_base.format(tag='eq_share')
-    # print('Saving to', fname)
-    # plt.savefig(fname, dpi=300)
-    # plt.clf()
-    # for model in temps:
-        # plt.plot(ns, temps[model], label=model, marker='o')
-    # plt.legend()
-    # plt.xlabel('n')
-    # plt.ylabel('temp')
-    # fname = fname_base.format(tag='temp')
-    # print('Saving to', fname)
-    # plt.savefig(fname, dpi=300)
 
 def load_eqs(
         model1: str,
@@ -215,9 +155,10 @@ if __name__ == '__main__':
         from completion_hf import MODELS
     if args.no_save:
         SAVE = False
+    plt.rcParams.update({'font.size': 11})
     models = get_model_list(args.models, set(MODELS.keys()))
-    assert len(models) == 2
-    model1, model2 = sorted(models)
     fm = FileManager.from_base('.')
-    results = load_eqs(model1, model2, 1.0, fm)
-    plot_results(results, fm)
+    # get all combinations
+    for model1, model2 in combinations(models, 2):
+        results = load_eqs(model1, model2, 1.0, fm)
+        plot_results(results, fm)
