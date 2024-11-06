@@ -228,7 +228,14 @@ class FileManager:
             df = df[df['verifier'] == verifier]
         return df
 
-    def get_all_info(self, model: str='', n: int=0, gamma: float=0.0) -> pd.DataFrame:
+    def get_all_info(
+            self,
+            model: str='',
+            models: list = [],
+            n: int=0,
+            gamma: float=0.0,
+            ) -> pd.DataFrame:
+        assert not (model and models)
         all_samples = list(self.locations.info_dir.glob(f"*_info.pkl"))
         data = [self.parse_info_fname(fname) for fname in all_samples]
         for d, fname in zip(data, all_samples):
@@ -236,6 +243,8 @@ class FileManager:
         df = pd.DataFrame(data)
         if model:
             df = df[df['model'] == model]
+        if models:
+            df = df[df['model'].isin(models)]
         if n > 0:
             df = df[df['n'] == n]
         if gamma > 0:
