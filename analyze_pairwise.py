@@ -17,6 +17,7 @@ parser.add_argument('--input_dir', '-i', type=str, default='./samples')
 parser.add_argument('--output_dir', '-o', type=str, default='./info')
 parser.add_argument('--job_num', '-j', type=int, default=0)
 parser.add_argument('--total_jobs', '-t', type=int, default=1)
+parser.add_argument('--gamma', '-g', type=float, default=1.0)
 
 def load_samples(model: str, max_temp: float, fm: FileManager):
     all_samples = fm.get_all_samples(model=model)
@@ -291,10 +292,10 @@ if __name__ == '__main__':
     jobs = list(product(ns, pairs))
     my_jobs = jobs[args.job_num::args.total_jobs]
     nicknames_to_max_temps = {nickname: MAX_TEMPS[real_name] for nickname, real_name in MODELS.items() if real_name in MAX_TEMPS}
+    gamma = args.gamma
     for n, (model1, model2) in my_jobs:
         print('Models:', model1, model2)
         verifier = args.verifier
-        gamma = 1.0
         pairwise_eq_finder = PairwiseEquilibria(model1, model2, verifier, fm, nicknames_to_max_temps)
 
         fname = fm.get_pairwise_fname(model1, model2, n, gamma)
