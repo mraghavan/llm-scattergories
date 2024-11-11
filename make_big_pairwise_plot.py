@@ -12,6 +12,7 @@ parser.add_argument('--models', '-m', type=str, required=True)
 parser.add_argument('--use_mlx', '-x', action='store_true', default=False)
 parser.add_argument('--scores_dir', '-s', type=str, default='./info')
 parser.add_argument('--no_save', '-n', action='store_true', default=False)
+parser.add_argument('--gamma', '-g', type=float, default=1.0)
 SAVE = True
 LIM = 14.5
 SCALE = 1.7
@@ -68,10 +69,11 @@ if __name__ == '__main__':
     rows = models[:-1]
     columns = models[1:]
     fig, axs = plt.subplots(dimension, dimension, figsize=(SCALE*dimension, SCALE*dimension))
+    gamma = args.gamma
     for i, model1 in enumerate(rows):
         for j, model2 in enumerate(columns[i:]):
             print(model1, model2)
-            results = load_eqs(model1, model2, 1.0, fm)
+            results = load_eqs(model1, model2, gamma, fm)
             ax = axs[i+j,i]
             if i == 0:
                 ax.set_ylabel(model2)
