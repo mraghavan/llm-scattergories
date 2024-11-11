@@ -11,6 +11,7 @@ parser.add_argument('--models', '-m', type=str, required=True)
 parser.add_argument('--use_mlx', '-x', action='store_true', default=False)
 parser.add_argument('--scores_dir', '-s', type=str, default='./info')
 parser.add_argument('--no_save', '-n', action='store_true', default=False)
+parser.add_argument('--gamma', '-g', type=float, default=1.0)
 SAVE = True
 
 def save_if_needed(fname: str, to_save: bool):
@@ -159,6 +160,7 @@ if __name__ == '__main__':
     models = get_model_list(args.models, set(MODELS.keys()))
     fm = FileManager.from_base('.')
     # get all combinations
+    gamma = args.gamma
     for model1, model2 in combinations(models, 2):
-        results = load_eqs(model1, model2, 1.0, fm)
+        results = load_eqs(model1, model2, gamma, fm)
         plot_results(results, fm)
