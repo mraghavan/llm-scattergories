@@ -1,5 +1,6 @@
 import re
 import random
+from jinja2.exceptions import TemplateError
 
 # GENERIC_PROMPT_TEMPLATE = string.Template("<|start_header_id|>system<|end_header_id|>\n\n${system}<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n")
 # ONE_SHOT_PROMPT_TEMPLATE = string.Template("<|start_header_id|>system<|end_header_id|>\n\n${system}<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n")
@@ -136,11 +137,19 @@ def get_scat_prompt(letter: str, category: str, tokenizer):
         messages.append({"role": "user", "content": q})
         messages.append({"role": "assistant", "content": a})
     messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
-    text = tokenizer.apply_chat_template(
-        messages,
-        tokenize=False,
-        add_generation_prompt=True
-        )
+    try:
+        text = tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True
+            )
+    except TemplateError:
+        messages = messages[1:]
+        text = tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True
+            )
     return str(text)
     # return QUESTION_TEMPLATE.format(letter=letter, category=category)
 
