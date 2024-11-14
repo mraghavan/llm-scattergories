@@ -11,7 +11,6 @@ MODELS = {
         'smollm': 'HuggingFaceTB/SmolLM-1.7B-Instruct',
         # 'qwen2': 'Qwen/Qwen2-7B', # (use 2.5 instead)
         'gemma2': 'google/gemma-2-2b-it', # (no system role in chat template)
-        'gemma2-9b': 'google/gemma-2-9b-it',
         'mistral': 'mistralai/Mistral-7B-Instruct-v0.3',
         'phi3.5': 'microsoft/Phi-3.5-mini-instruct',
         'nemotron': 'nvidia/Nemotron-Mini-4B-Instruct',
