@@ -69,15 +69,6 @@ def get_model_list(models: str, allowed_models: set[str]) -> list[str]:
             raise ValueError(f'Invalid model: {model}')
     return sorted(model_list)
 
-def get_model_list(models: str, allowed_models: set[str]) -> list[str]:
-    if models == 'all':
-        return sorted(list(allowed_models))
-    model_list = models.split(',')
-    for model in model_list:
-        if model not in allowed_models:
-            raise ValueError(f'Invalid model: {model}')
-    return sorted(model_list)
-
 def get_random_letter():
     return random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZ')
 
