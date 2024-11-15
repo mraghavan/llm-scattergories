@@ -221,9 +221,6 @@ if __name__ == '__main__':
         from completion_hf import CompletionEngineHF as CE, MODELS
     fm = FileManager.from_args(samples_dir=args.output_dir)
     models = get_model_list(args.models, set(MODELS.keys()))
-    if args.job_num >= len(models):
-        print(f'Job number {args.job_num} is out of range')
-        sys.exit(0)
     instances = get_deterministic_instances(args.num_instances)
     if len(models) > 1 and args.num_jobs > 1:
         models = models[args.job_num::args.num_jobs]
