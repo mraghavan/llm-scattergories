@@ -224,9 +224,13 @@ if __name__ == '__main__':
     if args.job_num >= len(models):
         print(f'Job number {args.job_num} is out of range')
         sys.exit(0)
-    models = models[args.job_num::args.num_jobs]
-    print(f'Models for job {args.job_num}: {models}')
     instances = get_deterministic_instances(args.num_instances)
+    if len(models) > 1 and args.num_jobs > 1:
+        models = models[args.job_num::args.num_jobs]
+    elif len(models) == 1 and args.num_jobs > 1:
+        instances = instances[args.job_num::args.num_jobs]
+    print(f'Models for job {args.job_num}: {models}')
+    print(f'Instances for job {args.job_num}: {instances}')
     for nickname in models:
         print('Model:', nickname)
         model_name = MODELS[nickname]

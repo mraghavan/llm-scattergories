@@ -8,7 +8,8 @@
 #SBATCH --mem=10G
 #SBATCH --gres=gpu:1
 #SBATCH --partition=cpu-gpu-v100
+#SBATCH --array=0-3
 
 export HF_TOKEN=$(cat ~/.HF_TOKEN)
 
-time python3 generate_samples.py -m gemma2 -n 25 -s 2000
+time python3 generate_samples.py -m gemma2 -n 25 -s 2000 -j -b 6 $SLURM_ARRAY_TASK_ID -t $SLURM_ARRAY_TASK_COUNT
