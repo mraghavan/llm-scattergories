@@ -13,6 +13,8 @@ parser.add_argument('--verifier', '-v', type=str, default='')
 parser.add_argument('--use_mlx', '-x', action='store_true', default=False)
 parser.add_argument('--input_dir', '-i', type=str, default='./samples')
 parser.add_argument('--batch_size', '-b', type=int, default=4)
+parser.add_argument('--job_num', '-j', type=int, default=0)
+parser.add_argument('--num_jobs', '-t', type=int, default=1)
 
 def get_v_fname(output_dir: str, letter: str, category: str, v_name: str) -> str:
     category = re.sub('[^a-zA-Z0-9 ]+', '', category)
@@ -29,6 +31,8 @@ if __name__ == '__main__':
     models = get_model_list(args.models, set(MODELS.keys()))
     df = fm.get_all_samples(models=models)
     instances = sorted(list(df[['letter', 'category']].drop_duplicates().itertuples(index=False, name=None)))
+    if args.num_jobs > 1:
+        instances = instances[args.job_num::args.num_jobs]
     verifier_model_name = MODELS[args.verifier]
     verifier = Verifier(verifier_model_name, CEClass, nickname=args.verifier)
     for letter, category in instances:
