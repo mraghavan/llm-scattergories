@@ -9,7 +9,8 @@ parser.add_argument('--models', '-m', type=str, required=True)
 if __name__ == '__main__':
     args = parser.parse_args()
     models = get_model_list(args.models, set(MODELS.keys()))
-    for model in models:
+    for nickname in models:
+        model = MODELS[nickname]
         engine = CompletionEngineHF.get_completion_engine(model, max_temperature=0.0, nickname='nemotron', epsilon=0)
         allowed_tokens, allowed_starting_tokens = engine.get_allowed_tokens(letter='A')
         print(model)
