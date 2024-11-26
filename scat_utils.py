@@ -149,6 +149,10 @@ def is_yes(response: str, EOS: str):
     return response == 'yes' or response == 'y'
 
 def standardize_str(s: str, EOS_str: str='') -> str:
-    s = s.replace(EOS_str, '')
+    if EOS_str:
+        s = s.replace(EOS_str, '')
+    else:
+        # remove everything past the first non-alphabetic character
+        s = re.sub('[^a-zA-Z ]+.*', '', s)
     s = re.sub('[^a-zA-Z ]+', '', s).lower().strip()
     return re.sub('  ', ' ', s)
