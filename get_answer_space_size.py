@@ -15,7 +15,7 @@ if __name__ == '__main__':
         allowed_tokens, allowed_starting_tokens = engine.get_allowed_tokens(letter='A')
         print(model)
         print(len(allowed_tokens))
-        print(len(allowed_starting_tokens)**6)
+        print(len(allowed_tokens)**6)
         del engine
         gc.collect()
         if torch.cuda.is_available():
