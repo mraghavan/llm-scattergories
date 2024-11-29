@@ -147,7 +147,7 @@ def make_plots(models: list[str], fm: FileManager, max_temps: dict[str, float]):
         plt.plot(temps[:-1], weighted_inversions, label=model)
     plt.legend()
     plt.xlabel('Temperature')
-    plt.ylabel('Weighted inversions')
+    plt.ylabel(r'$\widehat{WI}(\hat{\mathbf{p}}^{(\tau)} \| \hat{\mathbf{p}}^{(\tau + 0.05)})$')
     if SAVE:
         fname = fm.locations.plots_dir / 'weighted_inversions.png'
         print('Saving to', fname)
