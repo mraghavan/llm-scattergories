@@ -10,4 +10,4 @@
 #SBATCH --array=0-80
 
 # Run the Python script
-time python3 analyze_pairwise.py -m nemotron,phi3.5,llama3.2,mistral,smollm,llama3.1 -v qwen2.5 -j $SLURM_ARRAY_TASK_ID -t $SLURM_ARRAY_TASK_COUNT
+time python3 analyze_pairwise.py -m gemma2,llama3.1,llama3.2,mistral,nemotron,phi3.5 -v qwen2.5 -j $SLURM_ARRAY_TASK_ID -t $SLURM_ARRAY_TASK_COUNT
