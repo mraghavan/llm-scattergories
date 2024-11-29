@@ -78,6 +78,23 @@ def plot_ds(models: list[str], v_model: str, tree_dir: str):
     plt.savefig('./img/correct_rate.png', dpi=300)
     plt.clf()
 
+# def get_inversions(probs: dict[str, float], verified_yes: set[str]) -> float:
+    # correct_probs = []
+    # incorrect_probs = []
+    # for answer, prob in sorted(probs.items(), key=lambda x: x[1], reverse=True):
+        # if standardize_str(answer) in verified_yes:
+            # correct_probs.append(prob)
+        # else:
+            # incorrect_probs.append(prob)
+    # all_probs = np.array(correct_probs + incorrect_probs)
+    # # print('Correct:', correct_probs)
+    # # print('Incorrect:', incorrect_probs)
+    # isotonic = np.abs(isotonic_regression_l1_total_order(-all_probs, np.ones(len(all_probs))))
+    # # print('Isotonic:', isotonic)
+    # TVD = total_variation_distance(all_probs, isotonic)
+    # return TVD
+
+
 if __name__ == '__main__':
     args = parser.parse_args()
     if args.use_mlx:
