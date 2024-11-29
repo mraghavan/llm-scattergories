@@ -6,13 +6,13 @@ Data generation proceeds in two steps:
 1. Generating samples of LLM responses to Scattergories prompts.
 2. Validing answers using an LLM.
 
-Sample generation is done through the `generate_samples.py` script. Example usage:
+Sample generation is done through `generate_samples.py`. Example usage:
 ```
 python3 generate_samples.py -m [MODELS] -s [NUM_SAMPLES] -n [NUM_INSTANCES]
 ```
 This should be run on a GPU cluster. See ```run_generate_samples.slurm``` for an example of how to do this.
 
-Sample verification is done through the ```verify_samples.py```. Example usage:
+Sample verification is done through ```verify_samples.py```. Example usage:
 ```
 python3 verify_samples.py -m [MODELS] -v [VERIFIER]
 ```
