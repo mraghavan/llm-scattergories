@@ -64,7 +64,7 @@ def plot_util_over_gamma(
     plot_helper(relevant_df, 'gamma', 'nash_eq_util', 'opt_util')
     plt.xlabel(r'$\gamma$')
     plt.ylabel('Utility per player')
-    plt.title(rf'Utility per player over $\gamma$ for $n={n}$')
+    plt.title(rf'OPT and EQ utility per player over $\gamma$ for $n={n}$')
     if SAVE:
         fname = fm.locations.plots_dir / 'opt_and_eq_util_over_gamma.png'
         print(f'Saving to {fname}')
@@ -82,7 +82,7 @@ def plot_temp_over_gamma(
     plot_helper(relevant_df, 'gamma', 'nash_eq', 'opt')
     plt.xlabel(r'$\gamma$')
     plt.ylabel('Temperature')
-    plt.title(rf'Temperature over $\gamma$ for $n={n}$')
+    plt.title(rf'OPT and EQ temperature over $\gamma$ for $n={n}$')
     if SAVE:
         fname = fm.locations.plots_dir / 'opt_and_eq_temp_over_gamma.png'
         print(f'Saving to {fname}')
@@ -100,7 +100,7 @@ def plot_sw_over_gamma(
     plot_helper(relevant_df, 'gamma', 'nash_eq_sw', 'opt_sw')
     plt.xlabel(r'$\gamma$')
     plt.ylabel('Social welfare per player')
-    plt.title(rf'Social welfare per player over $\gamma$ for $n={n}$')
+    plt.title(rf'OPT and EQ social welfare per player over $\gamma$ for $n={n}$')
     if SAVE:
         fname = fm.locations.plots_dir / 'opt_and_eq_sw_over_gamma.png'
         print(f'Saving to {fname}')
@@ -118,7 +118,7 @@ def plot_util_over_n(
     plot_helper(relevant_df, 'n', 'nash_eq_util', 'opt_util')
     plt.xlabel(r'$n$')
     plt.ylabel('Utility per player')
-    plt.title(rf'Utility per player over $n$ for $\gamma={gamma}$')
+    plt.title(rf'OPT and EQ utility per player over $n$ for $\gamma={gamma}$')
     if SAVE:
         fname = fm.locations.plots_dir / 'opt_and_eq_util_over_n.png'
         print(f'Saving to {fname}')
@@ -136,7 +136,7 @@ def plot_temp_over_n(
     plot_helper(relevant_df, 'n', 'nash_eq', 'opt')
     plt.xlabel(r'$n$')
     plt.ylabel('Temperature')
-    plt.title(rf'Temperature over $n$ for $\gamma={gamma}$')
+    plt.title(rf'OPT and EQ temperature over $n$ for $\gamma={gamma}$')
     if SAVE:
         fname = fm.locations.plots_dir / 'opt_and_eq_temp_over_n.png'
         print(f'Saving to {fname}')
