@@ -11,13 +11,16 @@ Sample generation is done through `generate_samples.py`. Example usage:
 python3 generate_samples.py -m [MODELS] -s [NUM_SAMPLES] -n [NUM_INSTANCES]
 ```
 This should be run on a GPU cluster. See ```run_generate_samples.slurm``` for an example of how to do this.
+Data will be written to `./samples/`.
 
 Sample verification is done through ```verify_samples.py```. Example usage:
 ```
 python3 verify_samples.py -m [MODELS] -v [VERIFIER]
 ```
 This should also be run on a GPU cluster.
-See ```run_verify_samples.slurm``` for an example of how to do this. The script `run_all.sh` will schedule both of these `slurm` scripts to run in sequence.
+See ```run_verify_samples.slurm``` for an example of how to do this.
+Data will be written to `./samples/`.
+The script `run_all.sh` will schedule both of these `slurm` scripts to run in sequence.
 Particularly when testing, consider reducing the number of instances and samples generated.
 
 ## Data Analysis
@@ -29,12 +32,14 @@ For each model, analyzing equilibria is fairly computationally light and need no
 ```
 python3 analyze_samples.py -m [MODELS] -v [VERIFIER]
 ```
+Data will be written to `./info/`.
 Change parameters in the script to analyze different games (e.g., with different congestion functions or numbers of players).
 
 Pairwise equilibria take longer to compute, and should probably be run on a CPU cluster. Example usage:
 ```
 python3 analyze_pairwise.py -m [MODELS] -v [VERIFIER]
 ```
+Data will be written to `./info/`.
 See ```run_analyze_pairwise.slurm``` for an example of how to do this on a cluster.
 
 ## Plots
