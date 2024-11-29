@@ -6,21 +6,21 @@ Data generation proceeds in two steps:
 1. Generating samples of LLM responses to Scattergories prompts.
 2. Validing answers using an LLM.
 
-Sample generation is done through `generate_samples.py`. Example usage:
+Sample generation is done through [`generate_samples.py`](generate_samples.py). Example usage:
 ```
 python3 generate_samples.py -m [MODELS] -s [NUM_SAMPLES] -n [NUM_INSTANCES]
 ```
-This should be run on a GPU cluster. See ```run_generate_samples.slurm``` for an example of how to do this.
+This should be run on a GPU cluster. See [`run_generate_samples.slurm`](run_generate_samples.slurm) for an example of how to do this.
 Data will be written to `./samples/`.
 
-Sample verification is done through ```verify_samples.py```. Example usage:
+Sample verification is done through [`verify_samples.py`](verify_samples.py). Example usage:
 ```
 python3 verify_samples.py -m [MODELS] -v [VERIFIER]
 ```
 This should also be run on a GPU cluster.
-See ```run_verify_samples.slurm``` for an example of how to do this.
+See [`run_verify_samples.slurm`](run_verify_samples.slurm) for an example of how to do this.
 Data will be written to `./samples/`.
-The script `run_all.sh` will schedule both of these `slurm` scripts to run in sequence.
+The script [`run_all.sh`](run_all.sh) will schedule both of these `slurm` scripts to run in sequence.
 Particularly when testing, consider reducing the number of instances and samples generated.
 
 ## Data Analysis
@@ -40,16 +40,16 @@ Pairwise equilibria take longer to compute, and should probably be run on a CPU 
 python3 analyze_pairwise.py -m [MODELS] -v [VERIFIER]
 ```
 Data will be written to `./info/`.
-See ```run_analyze_pairwise.slurm``` for an example of how to do this on a cluster.
+See [`run_analyze_pairwise.slurm`](run_analyze_pairwise.slurm) for an example of how to do this on a cluster.
 
 ## Plots
-This repository also has code to make plots of the results. See `paper_cmds.sh` for the commands used to produce the figures in the paper.
+This repository also has code to make plots of the results. See [`paper_cmds.sh`](paper_cmds.sh) for the commands used to produce the figures in the paper.
 
 ## Models
 To add models beyond the ones used in the paper, modify:
-1. ```completion_hf.py``` to add the model to the list of models along with its Hugging Face model ID.
-2. ```scat_utils.py``` to add the max temperature used for that model.
+1. [`completion_hf.py`](completion_hf.py) to add the model to the list of models along with its Hugging Face model ID.
+2. [`scat_utils.py`](scat_utils.py) to add the max temperature used for that model.
 
-If running on a Mac instead of a cluster, you can instead add models to ```completion_mlx.py``` and use the ```-x``` flag for ```generate_samples.py```. Make sure these models are MLX models. See ```completion_mlx.py``` for an examples.
+If running on a Mac instead of a cluster, you can instead add models to [`completion_mlx.py`](completion_mlx.py) and use the ```-x``` flag for ```generate_samples.py```. Make sure these models are MLX models. See ```completion_mlx.py``` for an examples.
 
 The prompt templates require models to support ```system```, ```assistant```, and ```user``` conversation roles.
