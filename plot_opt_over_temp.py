@@ -79,7 +79,7 @@ if __name__ == '__main__':
     if args.no_save:
         SAVE = False
     # increase font size for plt
-    plt.rcParams.update({'font.size': 11})
+    plt.rcParams.update({'font.size': 12})
     fm = FileManager.from_base('.')
     for model in models:
         max_temp = MAX_TEMPS[MODELS[model]]
