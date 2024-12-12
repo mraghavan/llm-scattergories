@@ -99,7 +99,7 @@ def plot_surface(ds):
     ax._set_view(view=view)
     plot_3d_lim(ds, ax, ns, gammas)
     plt.tight_layout()
-    plt.savefig('./img/lim_opt_3d.png', dpi=300)
+    plt.savefig('./img/lim_opt_3d.png', dpi=300, bbox_inches='tight')
     plt.show()
 
     _, ax = plt.subplots(subplot_kw={"projection": "3d"})
@@ -111,7 +111,7 @@ def plot_surface(ds):
     ax.set_zlabel(r'$\mathbf{p}_1$', rotation=0)
     plot_3d_lim(ds, ax, ns, gammas)
     plt.tight_layout()
-    plt.savefig('./img/lim_eq_3d.png', dpi=300)
+    plt.savefig('./img/lim_eq_3d.png', dpi=300, bbox_inches='tight')
     plt.show()
 
 def plot_3d_lim(ds, ax, ns, gammas):
