@@ -1,5 +1,8 @@
 MODELS=$1
 # plots
+# Theory for competition going to infinity
+python3 plot_inf.py
+
 # Main temp and utility plots (creates 5 figures)
 python3 make_plots.py -m $MODELS
 
