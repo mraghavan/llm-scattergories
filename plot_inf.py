@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from math import comb
-import matplotlib as mpl
 import matplotlib.colors as mcolors
 
 def binomial(n, k, p):
@@ -73,8 +72,8 @@ def get_theoretical_ps(ds, gamma):
 
 def plot_surface(ds):
     ns = range(1, 26)
-    gammas = [.1, 0.25, .5, 0.75, 0.99, 0.999, 1.0, 2.0]
-    gammas = np.arange(0.1, 2.5, 0.005)
+    gammas = np.arange(0.1, 2.5, 0.01)
+    print(len(gammas))
     n_grid, gamma_grid = np.meshgrid(ns, gammas)
     p_eqs = np.zeros_like(n_grid, dtype=float)
     p_opts = np.zeros_like(n_grid, dtype=float)
@@ -87,16 +86,15 @@ def plot_surface(ds):
             p_opts[j, i] = p_opt
 
 
-    cmap='copper'
     cmap='gist_earth'
     norm = mcolors.Normalize(vmin=np.min(p_opts), vmax=np.max(p_opts)+.03)
-    print(mpl.colormaps)
-    fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-    ax.plot_surface(n_grid, gamma_grid, p_opts, cmap=cmap, norm=norm)
+    _, ax = plt.subplots(subplot_kw={"projection": "3d"})
+    ax.plot_surface(n_grid, gamma_grid, p_opts, cmap=cmap, norm=norm, rstride=1, cstride=1)
     ax.set_xlabel('$n$')
     ax.set_ylabel(r'$\gamma$')
-    ax.set_zlabel(r'$\mathbf{p}_1$')
     # TODO rotate z axis label
+    ax.zaxis.set_rotate_label(False)
+    ax.set_zlabel(r'$\mathbf{p}_1$', rotation=0)
     view = (None, None, (0.5, 1.0), 13, 40, 0)
     ax._set_view(view=view)
     plot_3d_lim(ds, ax, ns, gammas)
@@ -104,12 +102,13 @@ def plot_surface(ds):
     plt.savefig('./img/lim_opt_3d.png', dpi=300)
     plt.show()
 
-    fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-    ax.plot_surface(n_grid, gamma_grid, p_eqs, cmap=cmap, norm=norm)
+    _, ax = plt.subplots(subplot_kw={"projection": "3d"})
+    ax.plot_surface(n_grid, gamma_grid, p_eqs, cmap=cmap, norm=norm, rstride=1, cstride=1)
     ax._set_view(view=view)
     ax.set_xlabel('$n$')
     ax.set_ylabel(r'$\gamma$')
-    ax.set_zlabel(r'$\mathbf{p}_1$')
+    ax.zaxis.set_rotate_label(False)
+    ax.set_zlabel(r'$\mathbf{p}_1$', rotation=0)
     plot_3d_lim(ds, ax, ns, gammas)
     plt.tight_layout()
     plt.savefig('./img/lim_eq_3d.png', dpi=300)
