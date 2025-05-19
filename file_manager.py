@@ -4,6 +4,7 @@ import re
 from typing import Dict, List, Union, Optional, Any
 from dataclasses import dataclass
 import pickle
+import json
 
 @dataclass
 class FileLocations:
@@ -12,6 +13,8 @@ class FileLocations:
     samples_dir: Path
     info_dir: Path
     plots_dir: Path
+    answer_sets_dir: Path
+    models_dir: Path  # New directory for model configurations
 
     @classmethod
     def from_base(cls, base_dir: Union[str, Path]):
@@ -20,12 +23,14 @@ class FileLocations:
             base_dir=base,
             samples_dir=base / "samples",
             info_dir=base / "info",
-            plots_dir=base / "img"
+            plots_dir=base / "img",
+            answer_sets_dir=base / "answer_sets",
+            models_dir=base / "models"  # New directory
         )
 
     def ensure_dirs(self):
         """Create all directories if they don't exist"""
-        for dir_path in [self.samples_dir, self.info_dir, self.plots_dir]:
+        for dir_path in [self.samples_dir, self.info_dir, self.plots_dir, self.answer_sets_dir, self.models_dir]:
             dir_path.mkdir(parents=True, exist_ok=True)
 
 class FileManager:
@@ -271,6 +276,47 @@ class FileManager:
         if gamma > 0:
             df = df[df['gamma'] == gamma]
         return df
+
+    def get_answer_set_fname(self, letter: str, category: str, min_count: int) -> Path:
+        category = self.safe_category(category)
+        return self.locations.answer_sets_dir / f'{letter}_{category}_min{min_count}_answers.pkl'
+
+    def write_answer_set(self, letter: str, category: str, min_count: int, answers: set):
+        fname = self.get_answer_set_fname(letter, category, min_count)
+        fname.parent.mkdir(parents=True, exist_ok=True)  # Create answer_sets directory if it doesn't exist
+        with open(fname, 'wb') as f:
+            print(f'Writing to {fname}')
+            pickle.dump(answers, f)
+
+    def load_answer_set(self, letter: str, category: str, min_count: int) -> set:
+        fname = self.get_answer_set_fname(letter, category, min_count)
+        with open(fname, 'rb') as f:
+            return pickle.load(f)
+
+    def get_model_config_fname(self, model_id: str) -> Path:
+        return self.locations.models_dir / f"{model_id}.json"
+
+    def load_model_config(self, model_id: str) -> dict:
+        """Load a single model configuration"""
+        fname = self.get_model_config_fname(model_id)
+        with open(fname, 'r') as f:
+            return json.load(f)
+
+    def write_model_config(self, model_id: str, config: dict):
+        """Write a model configuration"""
+        fname = self.get_model_config_fname(model_id)
+        with open(fname, 'w') as f:
+            json.dump(config, f, indent=2)
+
+    def get_all_model_configs(self) -> pd.DataFrame:
+        """Load all model configurations into a DataFrame"""
+        config_files = list(self.locations.models_dir.glob("*.json"))
+        configs = []
+        for fname in config_files:
+            with open(fname, 'r') as f:
+                config = json.load(f)
+                configs.append(config)
+        return pd.DataFrame(configs)
 
 if __name__ == '__main__':
     from scat_utils import get_deterministic_instances
