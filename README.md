@@ -1,5 +1,6 @@
 # Overview
-The code in this repository simulates and analyzes games of Scattergories using LLMs. There are two main components: data generation and data analysis.
+The code in this repository implements [this paper](https://arxiv.org/abs/2412.08610).
+At a high level, it simulates and analyzes games of Scattergories using LLMs. There are two main components: data generation and data analysis.
 
 ## Data Generation
 Data generation proceeds in two steps:
