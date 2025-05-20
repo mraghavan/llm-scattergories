@@ -199,7 +199,7 @@ def main():
     print(f"Loaded {len(model_configs)} model configurations")
     
     # Get deterministic instances
-    instances = get_deterministic_instances(1)
+    instances = get_deterministic_instances(4)
     
     # Get all jobs and select subset for this job
     all_jobs = get_all_jobs(model_configs, instances)
