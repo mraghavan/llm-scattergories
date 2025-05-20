@@ -14,4 +14,4 @@ export HF_TOKEN=$(cat ~/.HF_TOKEN)
 time python3 make_model_configs.py
 
 # Then run candidate_answers
-time python3 candidate_answers.py
+time python3 candidate_answers.py --min-count 100

@@ -70,7 +70,7 @@ class CandidateAnswers:
 def main():
     # Add argument parser
     parser = argparse.ArgumentParser(description='Generate candidate answers for scattergories')
-    parser.add_argument('--count-threshold', type=int, default=1,
+    parser.add_argument('--min-count', type=int, default=1,
                       help='Minimum count threshold for including an answer (default: 1)')
     args = parser.parse_args()
 
