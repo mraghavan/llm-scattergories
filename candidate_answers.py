@@ -78,7 +78,7 @@ def main():
     fm = FileManager.from_base(Path('./'))
     
     # Get deterministic instances
-    instances = get_deterministic_instances(1)
+    instances = get_deterministic_instances(4)
     
     # Load candidate answers for each instance
     for letter, category in instances:
