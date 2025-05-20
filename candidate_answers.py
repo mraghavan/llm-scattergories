@@ -4,6 +4,7 @@ from typing import Dict, List, Set
 import pandas as pd
 from file_manager import FileManager
 from scat_utils import get_deterministic_instances
+import argparse
 
 class CandidateAnswers:
     def __init__(self, file_manager: FileManager):
@@ -66,19 +67,30 @@ class CandidateAnswers:
 
         return candidates
 
-if __name__ == '__main__':
-    # Get deterministic instances
-    instances = get_deterministic_instances(25)
+def main():
+    # Add argument parser
+    parser = argparse.ArgumentParser(description='Generate candidate answers for scattergories')
+    parser.add_argument('--count-threshold', type=int, default=1,
+                      help='Minimum count threshold for including an answer (default: 1)')
+    args = parser.parse_args()
+
+    # Initialize FileManager
+    fm = FileManager.from_base(Path('./'))
     
+    # Get deterministic instances
+    instances = get_deterministic_instances(1)
+    
+    # Load candidate answers for each instance
+    for letter, category in instances:
+        candidates = ca.get_all_candidates(letter, category, count_threshold=args.count_threshold)
+        print(f"\n{letter} {category}:")
+        print(f"Found {len(candidates)} candidate answers")
+
+if __name__ == '__main__':
     # Initialize file manager and candidate answers
     fm = FileManager.from_base(Path('./'))
     ca = CandidateAnswers(fm)
     
     # Process each instance
-    for letter, category in instances:
-        print(f"\nProcessing {letter} {category}")
-        
-        # Get all candidates with count threshold of 1
-        candidates = ca.get_all_candidates(letter, category, count_threshold=1)
-        print(f"Found {len(candidates)} unique candidates above the threshold")
+    main()
         
