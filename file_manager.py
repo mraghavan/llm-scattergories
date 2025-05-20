@@ -14,7 +14,8 @@ class FileLocations:
     info_dir: Path
     plots_dir: Path
     answer_sets_dir: Path
-    models_dir: Path  # New directory for model configurations
+    models_dir: Path
+    rankings_dir: Path  # New directory for rankings
 
     @classmethod
     def from_base(cls, base_dir: Union[str, Path]):
@@ -25,12 +26,14 @@ class FileLocations:
             info_dir=base / "info",
             plots_dir=base / "img",
             answer_sets_dir=base / "answer_sets",
-            models_dir=base / "models"  # New directory
+            models_dir=base / "models",
+            rankings_dir=base / "rankings"  # New directory
         )
 
     def ensure_dirs(self):
         """Create all directories if they don't exist"""
-        for dir_path in [self.samples_dir, self.info_dir, self.plots_dir, self.answer_sets_dir, self.models_dir]:
+        for dir_path in [self.samples_dir, self.info_dir, self.plots_dir, 
+                        self.answer_sets_dir, self.models_dir, self.rankings_dir]:
             dir_path.mkdir(parents=True, exist_ok=True)
 
 class FileManager:
@@ -317,6 +320,65 @@ class FileManager:
                 config = json.load(f)
                 configs.append(config)
         return pd.DataFrame(configs)
+
+    def get_ranking_fname(self, letter: str, category: str, model_name: str) -> Path:
+        """Get filename for rankings of a specific model, letter, and category"""
+        category = self.safe_category(category)
+        return self.locations.rankings_dir / f'{letter}_{category}_{model_name}_rankings.pkl'
+
+    def write_rankings(self, letter: str, category: str, model_name: str, rankings: dict):
+        """Write rankings (NLLs) to file"""
+        fname = self.get_ranking_fname(letter, category, model_name)
+        with open(fname, 'wb') as f:
+            print(f'Writing rankings to {fname}')
+            pickle.dump(rankings, f)
+
+    def load_rankings(self, letter: str, category: str, model_name: str) -> dict:
+        """Load rankings (NLLs) from file"""
+        fname = self.get_ranking_fname(letter, category, model_name)
+        with open(fname, 'rb') as f:
+            return pickle.load(f)
+
+    def get_all_rankings(self, letter: str='', category: str='', model: str='') -> pd.DataFrame:
+        """Get DataFrame of all ranking files"""
+        category = self.safe_category(category) if category else ''
+        pattern = f"{letter}_{category}_{model}_rankings.pkl" if all([letter, category, model]) else "*_rankings.pkl"
+        all_rankings = list(self.locations.rankings_dir.glob(pattern))
+        
+        data = []
+        for fname in all_rankings:
+            parts = fname.stem.split('_')
+            if len(parts) >= 3:
+                data.append({
+                    'letter': parts[0],
+                    'category': parts[1],
+                    'model': parts[2],
+                    'fname': fname
+                })
+        
+        return pd.DataFrame(data)
+
+    def get_all_ranking_files(self, letter: str, category: str) -> list[tuple[str, Path]]:
+        """
+        Get all ranking files for a given letter and category.
+        
+        Args:
+            letter: The starting letter
+            category: The category name
+        
+        Returns:
+            List of tuples containing (model_name, file_path) for each ranking file
+        """
+        rankings_dir = self.locations.rankings_dir
+        category = self.safe_category(category)
+        pattern = f"{letter}_{category}_*_rankings.pkl"
+        
+        results = []
+        for ranking_file in rankings_dir.glob(pattern):
+            model_name = ranking_file.stem.split('_')[-2]
+            results.append((model_name, ranking_file))
+        
+        return results
 
 if __name__ == '__main__':
     from scat_utils import get_deterministic_instances
