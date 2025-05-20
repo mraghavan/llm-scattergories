@@ -209,6 +209,8 @@ def main():
     
     # Process each job
     for letter, category, model_config in my_jobs:
+        if model_config['model'] == 'llama3.1':
+            continue
         process_job(letter, category, model_config, fm, args.min_count)
 
 if __name__ == "__main__":
