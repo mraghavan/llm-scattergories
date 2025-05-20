@@ -8,7 +8,7 @@ from scat_utils import get_scat_prompt, MAX_TEMPS
 from completion_hf import MODELS
 
 # Define our own temperature grid parameters
-EPS_GRID = 0.5  # This will create temperatures spaced 0.1 apart
+EPS_GRID = 0.2  # This will create temperatures spaced 0.1 apart
 
 # Create a registry for prompt functions
 PROMPT_REGISTRY: Dict[str, Callable[[str, str, PreTrainedTokenizer], str]] = {}
@@ -80,7 +80,7 @@ def main():
     temp_ranges = {
         model: (0.0, MAX_TEMPS[MODELS[model]]) 
         for model in models 
-        if MODELS[model] in MAX_TEMPS
+        if MODELS[model] in MAX_TEMPS and model not in ('llama3.1', 'qwen2.5')
     }
     
     generate_model_configs(models, temp_ranges)
