@@ -1,4 +1,5 @@
 from pathlib import Path
+from jinja2.exceptions import TemplateError
 from typing import List, Dict, Union, Tuple, Callable
 from file_manager import FileManager
 import json
@@ -24,6 +25,36 @@ def register_prompt(name: str):
 @register_prompt("default")
 def default_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
     return get_scat_prompt(letter, category, tokenizer)
+
+@register_prompt("var1")
+def default_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
+    messages = [
+            {"role": "system", "content": "You are a helpful assistant. Answer in as few words as possible, with no explanations."},
+            {"role": "user", "content": "You are going to help me play Scattergories."},
+            {"role": "assistant", "content": "I understand."},
+            ]
+    SCAT_EXAMPLES = [
+            ("Letter: C\nCategory: Countries", "China"),
+            ("Letter: V\nCategory: Instruments", "Violin"),
+            ]
+    for q, a in SCAT_EXAMPLES:
+        messages.append({"role": "user", "content": q})
+        messages.append({"role": "assistant", "content": a})
+    messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
+    try:
+        text = tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True
+            )
+    except TemplateError:
+        messages = messages[1:]
+        text = tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True
+            )
+    return str(text)
 
 def get_temps_clean(max_temp: float) -> list[float]:
     """Generate a list of temperatures from 0 to max_temp in EPS_GRID increments"""
