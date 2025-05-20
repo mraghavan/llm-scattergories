@@ -82,7 +82,7 @@ def main():
     
     # Load candidate answers for each instance
     for letter, category in instances:
-        candidates = ca.get_all_candidates(letter, category, count_threshold=args.count_threshold)
+        candidates = ca.get_all_candidates(letter, category, count_threshold=args.min_count)
         print(f"\n{letter} {category}:")
         print(f"Found {len(candidates)} candidate answers")
 
