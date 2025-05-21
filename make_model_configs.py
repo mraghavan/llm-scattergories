@@ -11,6 +11,19 @@ from completion_hf import MODELS
 # Define our own temperature grid parameters
 EPS_GRID = 0.2  # This will create temperatures spaced 0.1 apart
 
+ALL_EXAMPLES = SCAT_EXAMPLES = [
+    ("Letter: C\nCategory: Countries", "China"),
+    ("Letter: V\nCategory: Instruments", "Violin"),
+    ("Letter: A\nCategory: Animals", "Alligator"),
+    ("Letter: B\nCategory: Things you find in a bathroom", "Brush"),
+    ("Letter: P\nCategory: U.S. Cities", "Philadelphia"),
+    ("Letter: S\nCategory: Superheroes", "Superman"),
+    ("Letter: M\nCategory: Brands of cars", "Mazda"),
+    ("Letter: T\nCategory: Things you can eat for breakfast", "Toast"),
+    ("Letter: F\nCategory: Famous people", "Franklin"),
+    ("Letter: D\nCategory: Hobbies", "Drawing"),
+]
+
 # Create a registry for prompt functions
 PROMPT_REGISTRY: Dict[str, Callable[[str, str, PreTrainedTokenizer], str]] = {}
 
@@ -26,21 +39,34 @@ def register_prompt(name: str):
 def default_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
     return get_scat_prompt(letter, category, tokenizer)
 
-@register_prompt("var1")
-def var1_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
+@register_prompt("gemini1")
+def gemini1_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
     messages = [
-            {"role": "system", "content": "You are a helpful assistant. Answer in as few words as possible, with no explanations."},
-            {"role": "user", "content": "You are going to help me play Scattergories."},
-            {"role": "assistant", "content": "I understand."},
-            ]
-    SCAT_EXAMPLES = [
-            ("Letter: C\nCategory: Countries", "China"),
-            ("Letter: V\nCategory: Instruments", "Violin"),
-            ]
+        {"role": "system", "content": "You are a Scattegories master. Provide a single, concise word or short phrase that fits the given letter and category. No explanations, no extra words."},
+        {"role": "user", "content": 'Let\'s play Scattegories! I\'ll give you a letter and a category. You respond with a valid answer that starts with that letter and fits the category. For example, if I say "Fruit" and "A," you could respond with "Apple" or "Apricot."'},
+        {"role": "assistant", "content": "Understood. I'm ready."},
+    ]
+    SCAT_EXAMPLES = ALL_EXAMPLES[:2]
     for q, a in SCAT_EXAMPLES:
         messages.append({"role": "user", "content": q})
         messages.append({"role": "assistant", "content": a})
     messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
+    return apply_template(messages, tokenizer)
+
+@register_prompt("chatgpt1")
+def chatgpt1_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
+    messages = [
+            {"role": "system", "content": "You are a concise and clever word generator. Respond with a single word or short phrase that fits the request. No explanations."},
+            {"role": "user", "content": 'We are playing a word game. I’ll give you a letter and a category. You respond with something that starts with that letter and fits the category. For example, if I say "Fruit" and "A," your answer could be "Apple" or "Avocado."'},
+            {"role": "assistant", "content": "Got it."},
+            ]
+    for q, a in SCAT_EXAMPLES[2:4]:
+        messages.append({"role": "user", "content": q})
+        messages.append({"role": "assistant", "content": a})
+    messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
+
+
+def apply_template(messages: List[Dict[str, str]], tokenizer: PreTrainedTokenizer) -> str:
     try:
         text = tokenizer.apply_chat_template(
             messages,
@@ -55,6 +81,35 @@ def var1_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> s
             add_generation_prompt=True
             )
     return str(text)
+# @register_prompt("var1")
+# def var1_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
+    # messages = [
+            # {"role": "system", "content": "You are a helpful assistant. Answer in as few words as possible, with no explanations."},
+            # {"role": "user", "content": "You are going to help me play Scattergories."},
+            # {"role": "assistant", "content": "I understand."},
+            # ]
+    # SCAT_EXAMPLES = [
+            # ("Letter: C\nCategory: Countries", "China"),
+            # ("Letter: V\nCategory: Instruments", "Violin"),
+            # ]
+    # for q, a in SCAT_EXAMPLES:
+        # messages.append({"role": "user", "content": q})
+        # messages.append({"role": "assistant", "content": a})
+    # messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
+    # try:
+        # text = tokenizer.apply_chat_template(
+            # messages,
+            # tokenize=False,
+            # add_generation_prompt=True
+            # )
+    # except TemplateError:
+        # messages = messages[1:]
+        # text = tokenizer.apply_chat_template(
+            # messages,
+            # tokenize=False,
+            # add_generation_prompt=True
+            # )
+    # return str(text)
 
 def get_temps_clean(max_temp: float) -> list[float]:
     """Generate a list of temperatures from 0 to max_temp in EPS_GRID increments"""
