@@ -27,7 +27,7 @@ requests==2.32.3
 safetensors==0.5.2
 scikit-learn==1.6.1
 scipy==1.15.3
-setuptools==75.8.2
+setuptools==78.1.1
 six==1.17.0
 sympy==1.13.1
 threadpoolctl==3.6.0
