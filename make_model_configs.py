@@ -64,6 +64,7 @@ def chatgpt1_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) 
         messages.append({"role": "user", "content": q})
         messages.append({"role": "assistant", "content": a})
     messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
+    return apply_template(messages, tokenizer)
 
 
 def apply_template(messages: List[Dict[str, str]], tokenizer: PreTrainedTokenizer) -> str:
