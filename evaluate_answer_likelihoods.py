@@ -189,6 +189,8 @@ def main():
                       help='Job number (0-based index) (default: 0)')
     parser.add_argument('--num-jobs', type=int, default=1,
                       help='Total number of jobs (default: 1)')
+    parser.add_argument('--num-instances', '-n', type=int, default=1,
+                      help='Number of instances to evaluate (default: 1)')
     args = parser.parse_args()
 
     # Initialize FileManager
@@ -199,7 +201,7 @@ def main():
     print(f"Loaded {len(model_configs)} model configurations")
     
     # Get deterministic instances
-    instances = get_deterministic_instances(4)
+    instances = get_deterministic_instances(args.num_instances)
     
     # Get all jobs and select subset for this job
     all_jobs = get_all_jobs(model_configs, instances)
