@@ -91,6 +91,19 @@ def grok1_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> 
     messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
     return apply_template(messages, tokenizer)
 
+@register_prompt("deepseek1")
+def deepseek1_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
+    messages = [
+        {"role": "system", "content": "You are a competitive Scattergories champion. Respond with only valid answers - single words or very short phrases that perfectly match the category and start with the given letter. No explanations, no apologies."},
+        {"role": "user", "content": "Let's play Scattergories! I'll give you a letter and category, and you'll respond with the first valid answer that comes to mind. Quick, creative, and strictly following the rules. For example:"},
+        {"role": "assistant", "content": "Ready to play."},
+    ]
+    for q, a in ALL_EXAMPLES[8:]:
+        messages.append({"role": "user", "content": q})
+        messages.append({"role": "assistant", "content": a})
+    messages.append({"role": "user", "content": f"⚡ Lightning Round ⚡\nLetter: {letter.upper()}\nCategory: {category}\nGO:"})
+    return apply_template(messages, tokenizer)
+
 def apply_template(messages: List[Dict[str, str]], tokenizer: PreTrainedTokenizer) -> str:
     try:
         text = tokenizer.apply_chat_template(
@@ -106,6 +119,7 @@ def apply_template(messages: List[Dict[str, str]], tokenizer: PreTrainedTokenize
             add_generation_prompt=True
             )
     return str(text)
+
 # @register_prompt("var1")
 # def var1_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
     # messages = [
