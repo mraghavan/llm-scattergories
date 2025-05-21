@@ -138,7 +138,7 @@ def generate_model_configs(
             continue
             
         min_temp, max_temp = temp_ranges[model]
-        temperatures = [t for t in get_temps_clean(max_temp) if t >= min_temp]
+        temperatures = [round(t, 2) for t in np.linspace(min_temp, max_temp, 4)[1:]]
             
         # Generate configs for each temperature
         for temp in temperatures:
