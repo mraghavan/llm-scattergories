@@ -72,13 +72,15 @@ def main():
     parser = argparse.ArgumentParser(description='Generate candidate answers for scattergories')
     parser.add_argument('--min-count', type=int, default=1,
                       help='Minimum count threshold for including an answer (default: 1)')
+    parser.add_argument('--num-instances', '-n', type=int, default=1,
+                      help='Number of instances to process (default: 1)')
     args = parser.parse_args()
 
     # Initialize FileManager
     fm = FileManager.from_base(Path('./'))
     
     # Get deterministic instances
-    instances = get_deterministic_instances(4)
+    instances = get_deterministic_instances(args.num_instances)
     
     # Load candidate answers for each instance
     for letter, category in instances:

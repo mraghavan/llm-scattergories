@@ -66,6 +66,18 @@ def chatgpt1_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) 
     messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
     return apply_template(messages, tokenizer)
 
+@register_prompt("claude1")
+def claude1_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
+    messages = [
+        {"role": "system", "content": "You are a Scattegories expert. Provide single-word or very brief answers that start with the specified letter. Be creative, original, and avoid common responses."},
+        {"role": "user", "content": "We're playing Scattegories. I'll give you a letter and category, and you'll respond with an interesting word or short phrase starting with that letter. For example, if I say 'Letter: A, Category: Fruit,' you might answer 'Ackee' or 'Asian pear' rather than the more obvious 'Apple.'"},
+        {"role": "assistant", "content": "Ready to play!"},
+    ]
+    for q, a in SCAT_EXAMPLES:
+        messages.append({"role": "user", "content": q})
+        messages.append({"role": "assistant", "content": a})
+    messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
+    return apply_template(messages, tokenizer)
 
 def apply_template(messages: List[Dict[str, str]], tokenizer: PreTrainedTokenizer) -> str:
     try:

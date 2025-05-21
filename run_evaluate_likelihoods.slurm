@@ -8,8 +8,8 @@
 #SBATCH --mem=10G
 #SBATCH --gres=gpu:1
 #SBATCH --partition=cpu-gpu-v100
-#SBATCH --array=0-5%3
+#SBATCH --array=0-10%4
 
 export HF_TOKEN=$(cat ~/.HF_TOKEN)
 
-time python3 evaluate_answer_likelihoods.py --job-num $SLURM_ARRAY_TASK_ID --num-jobs $SLURM_ARRAY_TASK_COUNT --min-count 100 -n 4
+time python3 evaluate_answer_likelihoods.py --job-num $SLURM_ARRAY_TASK_ID --num-jobs $SLURM_ARRAY_TASK_COUNT --min-count 100 -n 5
