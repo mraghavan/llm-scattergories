@@ -11,7 +11,7 @@ from completion_hf import MODELS
 # Define our own temperature grid parameters
 EPS_GRID = 0.2  # This will create temperatures spaced 0.1 apart
 
-ALL_EXAMPLES = SCAT_EXAMPLES = [
+ALL_EXAMPLES = [
     ("Letter: C\nCategory: Countries", "China"),
     ("Letter: V\nCategory: Instruments", "Violin"),
     ("Letter: A\nCategory: Animals", "Alligator"),
@@ -46,8 +46,7 @@ def gemini1_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -
         {"role": "user", "content": 'Let\'s play Scattegories! I\'ll give you a letter and a category. You respond with a valid answer that starts with that letter and fits the category. For example, if I say "Fruit" and "A," you could respond with "Apple" or "Apricot."'},
         {"role": "assistant", "content": "Understood. I'm ready."},
     ]
-    SCAT_EXAMPLES = ALL_EXAMPLES[:2]
-    for q, a in SCAT_EXAMPLES:
+    for q, a in ALL_EXAMPLES[:2]:
         messages.append({"role": "user", "content": q})
         messages.append({"role": "assistant", "content": a})
     messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
@@ -60,7 +59,7 @@ def chatgpt1_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) 
             {"role": "user", "content": 'We are playing a word game. I’ll give you a letter and a category. You respond with something that starts with that letter and fits the category. For example, if I say "Fruit" and "A," your answer could be "Apple" or "Avocado."'},
             {"role": "assistant", "content": "Got it."},
             ]
-    for q, a in SCAT_EXAMPLES[2:4]:
+    for q, a in ALL_EXAMPLES[2:4]:
         messages.append({"role": "user", "content": q})
         messages.append({"role": "assistant", "content": a})
     messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
@@ -73,7 +72,7 @@ def claude1_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -
         {"role": "user", "content": "We're playing Scattegories. I'll give you a letter and category, and you'll respond with an interesting word or short phrase starting with that letter. For example, if I say 'Letter: A, Category: Fruit,' you might answer 'Ackee' or 'Asian pear' rather than the more obvious 'Apple.'"},
         {"role": "assistant", "content": "Ready to play!"},
     ]
-    for q, a in SCAT_EXAMPLES[4:6]:
+    for q, a in ALL_EXAMPLES[4:6]:
         messages.append({"role": "user", "content": q})
         messages.append({"role": "assistant", "content": a})
     messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
@@ -86,7 +85,7 @@ def grok1_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> 
         {"role": "user", "content": "We're playing Scattergories! I'll give you a letter and a category. Respond with a word or short phrase starting with that letter, fitting the category. For example, 'Fruit' and 'B' could be 'Banana' or 'Blueberry.'"},
         {"role": "assistant", "content": "Got it! Ready to play."},
     ]
-    for q, a in SCAT_EXAMPLES[6:8]:
+    for q, a in ALL_EXAMPLES[6:8]:
         messages.append({"role": "user", "content": q})
         messages.append({"role": "assistant", "content": a})
     messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
