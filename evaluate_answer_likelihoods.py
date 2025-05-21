@@ -6,6 +6,7 @@ from completion_hf import CompletionEngineHF, MODELS
 import numpy as np
 from make_model_configs import PROMPT_REGISTRY
 import argparse
+import random
 
 def load_model_configs() -> pd.DataFrame:
     """
@@ -205,8 +206,9 @@ def main():
     
     # Get all jobs and select subset for this job
     all_jobs = get_all_jobs(model_configs, instances)
-    # apply a deterministic shuffle
-    all_jobs = np.random.RandomState(0).permutation(all_jobs)
+    # apply a deterministic shuffle using Python's random module
+    random.seed(0)
+    random.shuffle(all_jobs)
     my_jobs = all_jobs[args.job_num::args.num_jobs]
     
     print(f"Processing {len(my_jobs)} jobs out of {len(all_jobs)} total jobs")
