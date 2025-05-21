@@ -73,7 +73,20 @@ def claude1_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -
         {"role": "user", "content": "We're playing Scattegories. I'll give you a letter and category, and you'll respond with an interesting word or short phrase starting with that letter. For example, if I say 'Letter: A, Category: Fruit,' you might answer 'Ackee' or 'Asian pear' rather than the more obvious 'Apple.'"},
         {"role": "assistant", "content": "Ready to play!"},
     ]
-    for q, a in SCAT_EXAMPLES:
+    for q, a in SCAT_EXAMPLES[4:6]:
+        messages.append({"role": "user", "content": q})
+        messages.append({"role": "assistant", "content": a})
+    messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
+    return apply_template(messages, tokenizer)
+
+@register_prompt("grok1")
+def grok1_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
+    messages = [
+        {"role": "system", "content": "You are a creative assistant. Provide a single word or short phrase in response, no explanations."},
+        {"role": "user", "content": "We're playing Scattergories! I'll give you a letter and a category. Respond with a word or short phrase starting with that letter, fitting the category. For example, 'Fruit' and 'B' could be 'Banana' or 'Blueberry.'"},
+        {"role": "assistant", "content": "Got it! Ready to play."},
+    ]
+    for q, a in SCAT_EXAMPLES[6:8]:
         messages.append({"role": "user", "content": q})
         messages.append({"role": "assistant", "content": a})
     messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
