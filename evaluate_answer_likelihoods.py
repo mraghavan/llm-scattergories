@@ -205,6 +205,8 @@ def main():
     
     # Get all jobs and select subset for this job
     all_jobs = get_all_jobs(model_configs, instances)
+    # apply a deterministic shuffle
+    all_jobs = np.random.RandomState(0).permutation(all_jobs)
     my_jobs = all_jobs[args.job_num::args.num_jobs]
     
     print(f"Processing {len(my_jobs)} jobs out of {len(all_jobs)} total jobs")
