@@ -27,7 +27,7 @@ def default_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -
     return get_scat_prompt(letter, category, tokenizer)
 
 @register_prompt("var1")
-def default_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
+def var1_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
     messages = [
             {"role": "system", "content": "You are a helpful assistant. Answer in as few words as possible, with no explanations."},
             {"role": "user", "content": "You are going to help me play Scattergories."},
