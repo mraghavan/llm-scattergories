@@ -3,6 +3,8 @@ scores/
 info/
 samples/
 img/
+rankings/
+answer_sets/
 *.out
 *.err
 .DS_Store
