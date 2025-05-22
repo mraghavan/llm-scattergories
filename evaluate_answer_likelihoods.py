@@ -95,7 +95,7 @@ def compute_answer_nll(prompt: str, answer: str, completion_engine: CompletionEn
         else:
             logits = completion_engine.get_logits_raw(current_input)
             # Cache logits if total log probability is above threshold
-            if logits_cache is not None and total_log_prob > np.log(0.05):
+            if logits_cache is not None and total_log_prob > np.log(0.01):
                 logits_cache[input_key] = logits
         
         # Apply temperature
