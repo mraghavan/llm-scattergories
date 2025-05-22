@@ -10,6 +10,13 @@
 #SBATCH --partition=cpu-gpu-v100
 #SBATCH --array=0-10%4
 
+# Check if min_count argument is provided
+if [ $# -eq 0 ]; then
+    echo "Error: Please provide a min-count value"
+    echo "Usage: sbatch $0 <min-count>"
+    exit 1
+fi
+
 export HF_TOKEN=$(cat ~/.HF_TOKEN)
 
-time python3 evaluate_answer_likelihoods.py --job-num $SLURM_ARRAY_TASK_ID --num-jobs $SLURM_ARRAY_TASK_COUNT --min-count 100 -n 5
+time python3 evaluate_answer_likelihoods.py --job-num $SLURM_ARRAY_TASK_ID --num-jobs $SLURM_ARRAY_TASK_COUNT --min-count $1 -n 5
