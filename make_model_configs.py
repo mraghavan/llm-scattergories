@@ -158,7 +158,7 @@ def grok2_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> 
 @register_prompt("deepseek2")
 def deepseek2_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
     messages = [
-        {"role": "system", "content": "You're playing Scattergories, the word game where players brainstorm unique words fitting categories. For each round, I'll provide a starting letter and a category. Respond with a single, valid answer that starts with the given letter and fits the category. Be creative but keep answers realistic and category-appropriate."},
+        {"role": "user", "content": "You're playing Scattergories, the word game where players brainstorm unique words fitting categories. For each round, I'll provide a starting letter and a category. Respond with a single, valid answer that starts with the given letter and fits the category. Be creative but keep answers realistic and category-appropriate."},
         {"role": "assistant", "content": "Understood! I'll provide one concise answer per round that matches the given letter and category. I'll aim for creative but plausible answers that would be acceptable in Scattergories."}
     ]
     messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
