@@ -139,9 +139,9 @@ def process_job(letter, category, model_config, fm, min_count):
     model_id = model_config['id']
     
     # Check if output already exists by checking the rankings file path
-    rankings_path = fm.get_ranking_fname(letter, category, model_id)
+    rankings_path = fm.get_ranking_fname(letter, category, model_id, min_count)
     if rankings_path.exists():
-        print(f"\nSkipping {letter} {category} {model_id} - output already exists")
+        print(f"\nSkipping {letter} {category} {model_id} min{min_count} - output already exists")
         return
     
     candidates = load_candidate_answers(fm, letter, category, min_count=min_count)
@@ -173,11 +173,11 @@ def process_job(letter, category, model_config, fm, min_count):
         model_nlls[answer] = nll
     del engine
     
-    # Save the rankings
-    fm.write_rankings(letter, category, model_id, model_nlls)
+    # Save the rankings with min_count parameter
+    fm.write_rankings(letter, category, model_id, min_count, model_nlls)
     
     # Print some sample results
-    print(f"Sample NLLs for {model_id}:")
+    print(f"Sample NLLs for {model_id} (min_count={min_count}):")
     for answer, nll in list(model_nlls.items())[:5]:
         print(f"{answer}: {nll:.2f}")
 

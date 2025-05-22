@@ -321,61 +321,63 @@ class FileManager:
                 configs.append(config)
         return pd.DataFrame(configs)
 
-    def get_ranking_fname(self, letter: str, category: str, model_name: str) -> Path:
+    def get_ranking_fname(self, letter: str, category: str, model_name: str, min_count: int) -> Path:
         """Get filename for rankings of a specific model, letter, and category"""
         category = self.safe_category(category)
-        return self.locations.rankings_dir / f'{letter}_{category}_{model_name}_rankings.pkl'
+        return self.locations.rankings_dir / f'{letter}_{category}_{model_name}_min{min_count}_rankings.pkl'
 
-    def write_rankings(self, letter: str, category: str, model_name: str, rankings: dict):
+    def write_rankings(self, letter: str, category: str, model_name: str, min_count: int, rankings: dict):
         """Write rankings (NLLs) to file"""
-        fname = self.get_ranking_fname(letter, category, model_name)
+        fname = self.get_ranking_fname(letter, category, model_name, min_count)
         with open(fname, 'wb') as f:
             print(f'Writing rankings to {fname}')
             pickle.dump(rankings, f)
 
-    def load_rankings(self, letter: str, category: str, model_name: str) -> dict:
+    def load_rankings(self, letter: str, category: str, model_name: str, min_count: int) -> dict:
         """Load rankings (NLLs) from file"""
-        fname = self.get_ranking_fname(letter, category, model_name)
+        fname = self.get_ranking_fname(letter, category, model_name, min_count)
         with open(fname, 'rb') as f:
             return pickle.load(f)
 
-    def get_all_rankings(self, letter: str='', category: str='', model: str='') -> pd.DataFrame:
+    def get_all_rankings(self, letter: str='', category: str='', model: str='', min_count: int=0) -> pd.DataFrame:
         """Get DataFrame of all ranking files"""
         category = self.safe_category(category) if category else ''
-        pattern = f"{letter}_{category}_{model}_rankings.pkl" if all([letter, category, model]) else "*_rankings.pkl"
+        pattern = f"{letter}_{category}_{model}_min{min_count}_rankings.pkl" if all([letter, category, model, min_count]) else "*_rankings.pkl"
         all_rankings = list(self.locations.rankings_dir.glob(pattern))
         
         data = []
         for fname in all_rankings:
             parts = fname.stem.split('_')
-            if len(parts) >= 3:
+            if len(parts) >= 4:  # Now expecting at least 4 parts due to min_count
                 data.append({
                     'letter': parts[0],
                     'category': parts[1],
                     'model': parts[2],
+                    'min_count': int(parts[3].replace('min', '')),
                     'fname': fname
                 })
         
         return pd.DataFrame(data)
 
-    def get_all_ranking_files(self, letter: str, category: str) -> list[tuple[str, Path]]:
+    def get_all_ranking_files(self, letter: str, category: str, min_count: int) -> list[tuple[str, Path]]:
         """
-        Get all ranking files for a given letter and category.
+        Get all ranking files for a given letter, category, and min_count.
         
         Args:
             letter: The starting letter
             category: The category name
+            min_count: The minimum count parameter
         
         Returns:
             List of tuples containing (model_name, file_path) for each ranking file
         """
         rankings_dir = self.locations.rankings_dir
         category = self.safe_category(category)
-        pattern = f"{letter}_{category}_*_rankings.pkl"
+        pattern = f"{letter}_{category}_*_min{min_count}_rankings.pkl"
         
         results = []
         for ranking_file in rankings_dir.glob(pattern):
-            model_name = ranking_file.stem.split('_')[-2]
+            model_name = ranking_file.stem.split('_')[-3]  # Adjusted index due to min_count
             results.append((model_name, ranking_file))
         
         return results
