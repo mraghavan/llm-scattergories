@@ -104,6 +104,67 @@ def deepseek1_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer)
     messages.append({"role": "user", "content": f"⚡ Lightning Round ⚡\nLetter: {letter.upper()}\nCategory: {category}\nGO:"})
     return apply_template(messages, tokenizer)
 
+@register_prompt("gemini2")
+def gemini2_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
+    messages = [
+        {"role": "system", "content": "You are an expert Scattergories player. Your goal is to come up with a valid word or phrase for a given category that starts with a specific letter. Your responses must be a single word or a short phrase. If you cannot think of a valid answer, respond with 'N/A'. Do not include any other text or explanations."},
+        {"role": "user", "content": "Letter: C\nCategory: Things you find in a classroom"},
+        {"role": "assistant", "content": "Chalkboard"},
+        {"role": "user", "content": "Letter: P\nCategory: Types of fruit"},
+        {"role": "assistant", "content": "Pineapple"},
+        {"role": "user", "content": "Letter: Z\nCategory: Animals"},
+        {"role": "assistant", "content": "Zebra"},
+        {"role": "user", "content": "Letter: X\nCategory: Colors"},
+        {"role": "assistant", "content": "N/A"},
+    ]
+    messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
+    return apply_template(messages, tokenizer)
+
+@register_prompt("claude2")
+def claude2_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
+    messages = [
+        {
+            "role": "system", 
+            "content": "You are playing Scattergories! Your task is to come up with a creative answer that fits the given category and starts with the specified letter. Follow these rules:\n\n1. Your answer must start with the given letter\n2. Your answer must fit the category\n3. Be creative and try to think of unique answers\n4. Give only ONE answer\n5. Respond with just the answer, no explanation needed\n\nExample:\nLetter: B\nCategory: Things in a kitchen\nAnswer: Blender"
+        },
+        {
+            "role": "user", 
+            "content": "Letter: S\nCategory: Animals"
+        },
+        {
+            "role": "assistant", 
+            "content": "Squirrel"
+        }
+    ]
+    messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
+    return apply_template(messages, tokenizer)
+
+@register_prompt("chatgpt2")
+def chatgpt2_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
+    messages = [
+        {"role": "system", "content": "You are playing a game of Scattergories. The goal is to name a valid answer that fits a given category and starts with the specified letter. Your answer should be unique, plausible, and as specific as possible. Only respond with the answer—no explanations or extra text."},
+    ]
+    messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
+    return apply_template(messages, tokenizer)
+
+@register_prompt("grok2")
+def grok2_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
+    messages = [
+        {"role": "system", "content": "You are a creative and quick-thinking assistant playing Scattergories. Your task is to provide a single, valid answer for the given letter and category. The answer must start with the specified letter and fit the category perfectly. Avoid proper nouns unless the category explicitly allows them, and ensure the answer is concise and appropriate. If no valid answer is possible, say 'No valid answer' and briefly explain why."},
+    ]
+    messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
+    return apply_template(messages, tokenizer)
+
+@register_prompt("deepseek2")
+def deepseek2_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
+    messages = [
+        {"role": "system", "content": "You're playing Scattergories, the word game where players brainstorm unique words fitting categories. For each round, I'll provide a starting letter and a category. Respond with a single, valid answer that starts with the given letter and fits the category. Be creative but keep answers realistic and category-appropriate."},
+        {"role": "assistant", "content": "Understood! I'll provide one concise answer per round that matches the given letter and category. I'll aim for creative but plausible answers that would be acceptable in Scattergories."}
+    ]
+    messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
+    return apply_template(messages, tokenizer)
+
+
 def apply_template(messages: List[Dict[str, str]], tokenizer: PreTrainedTokenizer) -> str:
     try:
         text = tokenizer.apply_chat_template(
