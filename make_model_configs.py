@@ -267,7 +267,7 @@ def main():
     temp_ranges = {
         model: (0.0, MAX_TEMPS[MODELS[model]]) 
         for model in models 
-        if MODELS[model] in MAX_TEMPS and model not in ('llama3.1', 'qwen2.5')
+        if MODELS[model] in MAX_TEMPS and model not in ('qwen2.5',)
     }
     
     generate_model_configs(models, temp_ranges)
