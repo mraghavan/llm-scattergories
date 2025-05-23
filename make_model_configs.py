@@ -173,6 +173,7 @@ def apply_template(messages: List[Dict[str, str]], tokenizer: PreTrainedTokenize
             add_generation_prompt=True
             )
     except TemplateError:
+        # Some models don't support the system message
         messages = messages[1:]
         text = tokenizer.apply_chat_template(
             messages,
