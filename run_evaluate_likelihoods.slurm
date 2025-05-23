@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=10G
 #SBATCH --gres=gpu:1
-#SBATCH --partition=cpu-gpu-v100
+#SBATCH --partition=cpu-gpu-rtx8000
 #SBATCH --array=0-10%4
 
 # Check if min_count argument is provided
