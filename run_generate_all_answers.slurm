@@ -12,4 +12,4 @@
 
 export HF_TOKEN=$(cat ~/.HF_TOKEN)
 
-time python3 generate_samples.py -c models -n 10 -s 50 -b 6 -j $SLURM_ARRAY_TASK_ID -t $SLURM_ARRAY_TASK_COUNT
+time python3 generate_samples.py -c models -n 5 -s 50 -b 6 -o out --no-cache -j $SLURM_ARRAY_TASK_ID -t $SLURM_ARRAY_TASK_COUNT
