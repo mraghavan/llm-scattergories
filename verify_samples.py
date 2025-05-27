@@ -51,7 +51,8 @@ if __name__ == '__main__':
         models = get_model_list(args.models, set(MODELS.keys()))
         models = [(m, m) for m in models]
         
-    df = fm.get_all_samples(models=models)
+    model_ids = [m[1] for m in models]
+    df = fm.get_all_samples(models=model_ids)
     instances = sorted(list(df[['letter', 'category']].drop_duplicates().itertuples(index=False, name=None)))
     if args.num_jobs > 1:
         instances = instances[args.job_num::args.num_jobs]
