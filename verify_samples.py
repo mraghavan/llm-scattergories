@@ -44,10 +44,12 @@ if __name__ == '__main__':
         models = []
         for _, row in configs_df.iterrows():
             config = row.to_dict()
+            nickname = config['model']
             model_id = config['id']
-            models.append(model_id)
+            models.append((nickname, model_id))
     else:
         models = get_model_list(args.models, set(MODELS.keys()))
+        models = [(m, m) for m in models]
         
     df = fm.get_all_samples(models=models)
     instances = sorted(list(df[['letter', 'category']].drop_duplicates().itertuples(index=False, name=None)))
@@ -59,9 +61,9 @@ if __name__ == '__main__':
         print(f'Category: {category}, Letter: {letter}')
         to_be_verified = set()
         # load all responses for all models
-        for nickname in models:
+        for nickname, model_id in models:
             model_name = MODELS[nickname]
-            all_samples = fm.get_all_samples(model=nickname, max_temp=MAX_TEMPS[model_name], letter=letter, category=category)
+            all_samples = fm.get_all_samples(model=model_id, max_temp=MAX_TEMPS[model_name], letter=letter, category=category)
             for _, row in all_samples.iterrows():
                 fname = Path(row['fname']) # type: ignore
                 with open(fname, 'rb') as f:
