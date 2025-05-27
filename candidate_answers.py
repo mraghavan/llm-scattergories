@@ -74,13 +74,18 @@ def main():
                       help='Minimum count threshold for including an answer (default: 1)')
     parser.add_argument('--num-instances', '-n', type=int, default=1,
                       help='Number of instances to process (default: 1)')
+    parser.add_argument('--input-dir', type=str, default='./',
+                      help='Directory containing the samples (default: ./)')
     args = parser.parse_args()
 
     # Initialize FileManager
-    fm = FileManager.from_base(Path('./'))
+    fm = FileManager.from_args(samples_dir=args.input_dir)
     
     # Get deterministic instances
     instances = get_deterministic_instances(args.num_instances)
+    
+    # Initialize candidate answers
+    ca = CandidateAnswers(fm)
     
     # Load candidate answers for each instance
     for letter, category in instances:
@@ -89,10 +94,5 @@ def main():
         print(f"Found {len(candidates)} candidate answers")
 
 if __name__ == '__main__':
-    # Initialize file manager and candidate answers
-    fm = FileManager.from_base(Path('./'))
-    ca = CandidateAnswers(fm)
-    
-    # Process each instance
     main()
         
