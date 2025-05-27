@@ -8,7 +8,9 @@ import argparse
 from scat_utils import MAX_TEMPS, get_model_list
 from file_manager import FileManager
 parser = argparse.ArgumentParser()
-parser.add_argument('--models', '-m', type=str, required=True)
+parser.add_argument('--models', '-m', type=str)
+parser.add_argument('--from-config', '-c', type=str,
+                    help='Load model configuration from a config file')
 parser.add_argument('--verifier', '-v', type=str, default='')
 parser.add_argument('--use_mlx', '-x', action='store_true', default=False)
 parser.add_argument('--input_dir', '-i', type=str, default='./samples')
@@ -23,12 +25,30 @@ def get_v_fname(output_dir: str, letter: str, category: str, v_name: str) -> str
 
 if __name__ == '__main__':
     args = parser.parse_args()
+    
+    # Add validation for required arguments
+    if bool(args.models) == bool(args.from_config):
+        parser.error("Either --models or --from-config must be specified, but not both")
+        
     if args.use_mlx:
         from completion_mlx import MODELS, CompletionEngineMLX as CEClass
     else:
         from completion_hf import MODELS, CompletionEngineHF as CEClass
     fm = FileManager.from_args(samples_dir=args.input_dir)
-    models = get_model_list(args.models, set(MODELS.keys()))
+    
+    if args.from_config:
+        # Load all configs from directory
+        configs_df = fm.get_all_model_configs()
+        if configs_df.empty:
+            raise ValueError(f"No configs found in {fm.locations.models_dir}")
+        models = []
+        for _, row in configs_df.iterrows():
+            config = row.to_dict()
+            model_id = config['id']
+            models.append(model_id)
+    else:
+        models = get_model_list(args.models, set(MODELS.keys()))
+        
     df = fm.get_all_samples(models=models)
     instances = sorted(list(df[['letter', 'category']].drop_duplicates().itertuples(index=False, name=None)))
     if args.num_jobs > 1:
