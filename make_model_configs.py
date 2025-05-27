@@ -4,6 +4,7 @@ from typing import List, Dict, Union, Tuple, Callable
 from file_manager import FileManager
 import json
 import numpy as np
+import argparse
 from transformers import PreTrainedTokenizer
 from scat_utils import get_scat_prompt, MAX_TEMPS
 from completion_hf import MODELS
@@ -220,7 +221,8 @@ def get_temps_clean(max_temp: float) -> list[float]:
 def generate_model_configs(
     models: List[str],
     temp_ranges: Dict[str, Tuple[float, float]],
-    base_dir: Union[str, Path] = "."
+    base_dir: Union[str, Path] = ".",
+    max_temp_only: bool = False,
 ) -> None:
     """
     Generate model configuration files for each combination of model, prompt function, and temperature.
@@ -239,7 +241,10 @@ def generate_model_configs(
             continue
             
         min_temp, max_temp = temp_ranges[model]
-        temperatures = [round(t, 2) for t in np.linspace(min_temp, max_temp, 4)[1:]]
+        if max_temp_only:
+            temperatures = [max_temp]
+        else:
+            temperatures = [round(t, 2) for t in np.linspace(min_temp, max_temp, 4)[1:]]
             
         # Generate configs for each temperature
         for temp in temperatures:
@@ -260,6 +265,12 @@ def generate_model_configs(
                 print(f"Created config for {config['id']}")
 
 def main():
+    # Set up argument parser
+    parser = argparse.ArgumentParser(description='Generate model configurations for Scattergories')
+    parser.add_argument('--max-temp-only', action='store_true', 
+                      help='Only use maximum temperature for each model')
+    args = parser.parse_args()
+
     # Use models from completion_hf
     models = list(MODELS.keys())
     
@@ -267,10 +278,10 @@ def main():
     temp_ranges = {
         model: (0.0, MAX_TEMPS[MODELS[model]]) 
         for model in models 
-        if MODELS[model] in MAX_TEMPS and model not in ('qwen2.5',)
+        if MODELS[model] in MAX_TEMPS and model not in ('qwen2.5', 'llama3.1')
     }
     
-    generate_model_configs(models, temp_ranges)
+    generate_model_configs(models, temp_ranges, max_temp_only=args.max_temp_only)
 
 # Example of how to use the registry when loading configs
 def load_and_use_config(config_id: str, letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
@@ -283,6 +294,9 @@ def load_and_use_config(config_id: str, letter: str, category: str, tokenizer: P
     
     # Use the prompt function
     return prompt_fn(letter, category, tokenizer)
+
+def get_prompt_fn_from_name(prompt_name: str) -> Callable[[str, str, PreTrainedTokenizer], str]:
+    return PROMPT_REGISTRY[prompt_name]
 
 if __name__ == "__main__":
     main() 

@@ -1,4 +1,5 @@
 import time
+import itertools
 import numpy as np
 import sys
 import gc
@@ -9,11 +10,14 @@ import random
 from collections import Counter
 from completion_base import CompletionEngine, softmax_temperature, softmax_temperature_2d
 from scat_utils import get_scat_prompt, get_deterministic_instances, standardize_str
+from make_model_configs import get_prompt_fn_from_name
 from file_manager import FileManager
 import argparse
 from scat_utils import get_model_list, MAX_TEMPS, get_scat_prompt
 parser = argparse.ArgumentParser()
-parser.add_argument('--models', '-m', type=str, required=True)
+parser.add_argument('--models', '-m', type=str)
+parser.add_argument('--from-config', '-c', type=str,
+                    help='Load model configuration from a config file')
 parser.add_argument('--verifier', '-v', type=str, default='')
 parser.add_argument('--num_instances', '-n', type=int, default=20)
 parser.add_argument('--use_mlx', '-x', action='store_true', default=False)
@@ -22,6 +26,8 @@ parser.add_argument('--job_num', '-j', type=int, default=0)
 parser.add_argument('--num_jobs', '-t', type=int, default=1)
 parser.add_argument('--num_samples', '-s', type=int, default=100)
 parser.add_argument('--batch_size', '-b', type=int, default=4)
+parser.add_argument('--no-cache', action='store_true', default=False,
+                    help='Disable writing cache files')
 
 EPS_GRID = 0.05
 LARGE_TEMP = 3.0
@@ -215,51 +221,91 @@ def get_temps_clean(max_temp: float) -> list[float]:
 
 if __name__ == '__main__':
     args = parser.parse_args()
+    
+    # Add validation for required arguments
+    if bool(args.models) == bool(args.from_config):
+        parser.error("Either --models or --from-config must be specified, but not both")
+    
     if args.use_mlx:
         from completion_mlx import CompletionEngineMLX as CE, MODELS
     else:
         from completion_hf import CompletionEngineHF as CE, MODELS
     fm = FileManager.from_args(samples_dir=args.output_dir)
-    models = get_model_list(args.models, set(MODELS.keys()))
+    
+    # Get instances first
     instances = get_deterministic_instances(args.num_instances)
-    if len(models) > 1 and args.num_jobs > 1:
-        models = models[args.job_num::args.num_jobs]
-    elif len(models) == 1 and args.num_jobs > 1:
-        instances = instances[args.job_num::args.num_jobs]
-    print(f'Models for job {args.job_num}: {models}')
-    print(f'Instances for job {args.job_num}: {instances}')
-    for nickname in models:
-        print('Model:', nickname)
-        model_name = MODELS[nickname]
-        max_temperature = MAX_TEMPS[model_name]
-        engine = CE.get_completion_engine(model_name, max_temperature=max_temperature, nickname=nickname, epsilon=0)
+    
+    model_configs = []
+    if args.from_config:
+        # Load all configs from directory
+        configs_df = fm.get_all_model_configs()
+        if configs_df.empty:
+            raise ValueError(f"No configs found in {fm.locations.models_dir}")
+            
+        for _, row in configs_df.iterrows():
+            config = row.to_dict()
+            # Create a prompt function specific to this config
+            prompt_fn = get_prompt_fn_from_name(config['prompt_function'])
+            nickname = config['model']
+            model_configs.append((nickname, [config['temperature']], config['id'], prompt_fn))
+    else:
+        models = get_model_list(args.models, set(MODELS.keys()))
+        # TODO: make sure nicknames are right
+        temps = get_temps_clean(MAX_TEMPS[models[0]])
+        for model in models:
+            model_configs.append((model, temps, model, get_scat_prompt))
 
-        temps = get_temps_clean(max_temperature)
-        for letter, category in instances:
-            cache_fname = fm.get_cache_fname(letter, category, nickname)
-            if os.path.exists(cache_fname):
-                with open(cache_fname, 'rb') as f:
-                    cache = pickle.load(f)
+    all_jobs = list(itertools.product(model_configs, instances))
+    if args.num_jobs > 1:
+        all_jobs = all_jobs[args.job_num::args.num_jobs]
+    
+    # Sort jobs by model and temperature to group similar jobs together
+    all_jobs.sort(key=lambda x: (x[0][0], x[0][1]))  # Sort by (model_nickname, temperature)
+    
+    print(f'All jobs: {all_jobs}')
+    prev_nickname = None
+    prev_max_temperature = None
+    prev_engine = None
+    for (nickname, temps, model_id, prompt_fn), instance in all_jobs:
+        print(f'Running job {model_id} on instance {instance}')
+        model_name = MODELS[nickname]
+        print(f'Prompt function: {prompt_fn.__name__}')
+        max_temperature = max(temps)
+            
+        if nickname != prev_nickname or max_temperature != prev_max_temperature:
+            if prev_engine is not None:
+                del prev_engine
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            engine = CE.get_completion_engine(model_name, max_temperature=max_temperature, nickname=nickname, epsilon=0)
+            prev_nickname = nickname
+            prev_max_temperature = max_temperature
+            prev_engine = engine
+        else:
+            engine = prev_engine
+        letter, category = instance
+        cache_fname = fm.get_cache_fname(letter, category, nickname)
+        if os.path.exists(cache_fname):
+            with open(cache_fname, 'rb') as f:
+                cache = pickle.load(f)
+        else:
+            cache = {}
+        for temp in temps:
+            print('Generating', args.num_samples, 'samples for', letter, category, 'at temperature', temp)
+            fname = fm.get_sample_fname(letter, category, model_id, temp)
+            if os.path.exists(fname):
+                existing_info = pickle.load(open(fname, 'rb'))
             else:
-                cache = {}
-            for temp in temps:
-                print('Generating', args.num_samples, 'samples for', letter, category, 'at temperature', temp)
-                fname = fm.get_sample_fname(letter, category, nickname, temp)
-                if os.path.exists(fname):
-                    existing_info = pickle.load(open(fname, 'rb'))
-                else:
-                    existing_info = None
-                if existing_info and existing_info['num_samples'] >= args.num_samples:
-                    print('Already have enough samples for', letter, category, 'at temperature', temp)
-                    continue
-                prompt = get_scat_prompt(letter, category, engine.tokenizer)
-                start = time.time()
-                info = generate_samples(engine, letter, category, temp, args.num_samples, batch_size = args.batch_size, cache=cache, existing_info=existing_info)
-                elapsed = time.time() - start
-                print(f'Elapsed time: {elapsed:.2f}')
-                fm.write_samples(letter, category, nickname, temp, info)
-                fm.write_cache(letter, category, nickname, cache)
-        del engine
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+                existing_info = None
+            if existing_info and existing_info['num_samples'] >= args.num_samples:
+                print('Already have enough samples for', letter, category, 'at temperature', temp)
+                continue
+            prompt = prompt_fn(letter, category, engine.tokenizer)
+            start = time.time()
+            info = generate_samples(engine, letter, category, temp, args.num_samples, batch_size = args.batch_size, cache=cache, existing_info=existing_info)
+            elapsed = time.time() - start
+            print(f'Elapsed time: {elapsed:.2f}')
+            fm.write_samples(letter, category, model_id, temp, info)
+            if not args.no_cache:
+                fm.write_cache(letter, category, model_id, cache)
