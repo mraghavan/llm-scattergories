@@ -71,7 +71,7 @@ class FileManager:
         return self.locations.samples_dir / f'{letter}_{category}_{model_name}_{temp}_samples.pkl'
 
     def parse_sample_fname(self, fname: Path) -> dict:
-        pattern = re.compile(r'(\w)_(.*)_([a-z0-9.]+)_(\d+\.\d+)_samples.pkl')
+        pattern = re.compile(r'(\w)_(.*)_([a-z0-9.\-]+)_(\d+\.\d+)_samples.pkl')
         matched = pattern.match(fname.name)
         assert matched is not None
         letter = matched.group(1)
