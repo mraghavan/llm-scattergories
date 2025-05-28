@@ -7,6 +7,7 @@ import numpy as np
 from make_model_configs import PROMPT_REGISTRY
 import argparse
 import random
+import gc
 
 def load_model_configs() -> pd.DataFrame:
     """
@@ -134,7 +135,7 @@ def get_all_jobs(model_configs, instances):
             all_jobs.append((letter, category, model_config))
     return all_jobs
 
-def process_job(letter, category, model_config, fm, min_count):
+def process_job(letter, category, model_config, fm, min_count, prev_engine=None):
     """Process a single job (letter, category, model_config combination)"""
     model_id = model_config['id']
     
@@ -164,7 +165,16 @@ def process_job(letter, category, model_config, fm, min_count):
     
     print(f"\nLoading model: {model_id} at temperature {temperature}")
     model_name = model_config['model']
-    engine = load_model(model_name, max_temperature=temperature)
+    if prev_engine is not None and prev_engine.nickname == model_name:
+        engine = prev_engine
+        engine.max_temperature = temperature
+    elif prev_engine is not None:
+        del prev_engine.model
+        del prev_engine.tokenizer
+        gc.collect()
+        engine = load_model(model_name, max_temperature=temperature)
+    else:
+        engine = load_model(model_name, max_temperature=temperature)
     
     # Get the prompt function from the registry
     prompt_fn = PROMPT_REGISTRY[model_config['prompt_function']]
@@ -178,7 +188,6 @@ def process_job(letter, category, model_config, fm, min_count):
         nll = compute_answer_nll(prompt, answer, engine, temperature, logits_cache)
         print(f"NLL for {answer}: {nll:.2f}")
         model_nlls[answer] = nll
-    del engine
     
     # Save the updated rankings with min_count parameter
     fm.write_rankings(letter, category, model_id, min_count, model_nlls)
@@ -187,6 +196,7 @@ def process_job(letter, category, model_config, fm, min_count):
     print(f"Sample NLLs for {model_id} (min_count={min_count}):")
     for answer, nll in list(model_nlls.items())[:5]:
         print(f"{answer}: {nll:.2f}")
+    return engine
 
 def main():
     # Add argument parser
@@ -219,10 +229,13 @@ def main():
     my_jobs = all_jobs[args.job_num::args.num_jobs]
     
     print(f"Processing {len(my_jobs)} jobs out of {len(all_jobs)} total jobs")
+    # sort my_jobs by model_id
+    my_jobs.sort(key=lambda x: x[2]['id'])
     
     # Process each job
+    prev_engine = None
     for letter, category, model_config in my_jobs:
-        process_job(letter, category, model_config, fm, args.min_count)
+        prev_engine = process_job(letter, category, model_config, fm, args.min_count, prev_engine)
 
 if __name__ == "__main__":
     main() 
