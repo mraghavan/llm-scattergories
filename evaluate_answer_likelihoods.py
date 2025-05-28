@@ -138,16 +138,26 @@ def process_job(letter, category, model_config, fm, min_count):
     """Process a single job (letter, category, model_config combination)"""
     model_id = model_config['id']
     
-    # Check if output already exists by checking the rankings file path
-    rankings_path = fm.get_ranking_fname(letter, category, model_id, min_count)
-    if rankings_path.exists():
-        print(f"\nSkipping {letter} {category} {model_id} min{min_count} - output already exists")
-        return
-    
+    # Get all candidate answers
     candidates = load_candidate_answers(fm, letter, category, min_count=min_count)
     
     print(f"\n{letter} {category}:")
     print(f"Found {len(candidates)} candidate answers")
+    
+    # Load existing rankings if they exist
+    rankings_path = fm.get_ranking_fname(letter, category, model_id, min_count)
+    if rankings_path.exists():
+        print(f"Loading existing rankings for {letter} {category} {model_id} min{min_count}")
+        model_nlls = fm.load_rankings(letter, category, model_id, min_count)
+        # Find answers that haven't been processed yet
+        new_answers = set(candidates) - set(model_nlls.keys())
+        if not new_answers:
+            print(f"No new answers to process for {letter} {category} {model_id} min{min_count}")
+            return
+        print(f"Found {len(new_answers)} new answers to process")
+    else:
+        model_nlls = {}
+        new_answers = candidates
     
     print(model_id)
     temperature = model_config['temperature']
@@ -159,21 +169,18 @@ def process_job(letter, category, model_config, fm, min_count):
     # Get the prompt function from the registry
     prompt_fn = PROMPT_REGISTRY[model_config['prompt_function']]
     
-    # Dictionary to store NLLs for this model
-    model_nlls = {}
-    
     # Initialize cache for this model's answers
     logits_cache = {}
     
-    # Compute NLL for each candidate answer
-    for answer in sorted(candidates):
+    # Compute NLL for each new candidate answer
+    for answer in sorted(new_answers):
         prompt = prompt_fn(letter, category, engine.tokenizer)
         nll = compute_answer_nll(prompt, answer, engine, temperature, logits_cache)
         print(f"NLL for {answer}: {nll:.2f}")
         model_nlls[answer] = nll
     del engine
     
-    # Save the rankings with min_count parameter
+    # Save the updated rankings with min_count parameter
     fm.write_rankings(letter, category, model_id, min_count, model_nlls)
     
     # Print some sample results
