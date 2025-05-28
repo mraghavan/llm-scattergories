@@ -178,13 +178,13 @@ def process_job(letter, category, model_config, fm, min_count, prev_engine=None)
     
     # Get the prompt function from the registry
     prompt_fn = PROMPT_REGISTRY[model_config['prompt_function']]
+    prompt = prompt_fn(letter, category, engine.tokenizer)
     
     # Initialize cache for this model's answers
     logits_cache = {}
     
     # Compute NLL for each new candidate answer
     for answer in sorted(new_answers):
-        prompt = prompt_fn(letter, category, engine.tokenizer)
         nll = compute_answer_nll(prompt, answer, engine, temperature, logits_cache)
         print(f"NLL for {answer}: {nll:.2f}")
         model_nlls[answer] = nll
