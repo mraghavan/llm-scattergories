@@ -74,8 +74,8 @@ def main():
                       help='Minimum count threshold for including an answer (default: 1)')
     parser.add_argument('--num-instances', '-n', type=int, default=1,
                       help='Number of instances to process (default: 1)')
-    parser.add_argument('--input-dir', type=str, default='./',
-                      help='Directory containing the samples (default: ./)')
+    parser.add_argument('--input-dir', type=str, default='./out',
+                      help='Directory containing the samples (default: ./out)')
     args = parser.parse_args()
 
     # Initialize FileManager
