@@ -3,13 +3,12 @@ import os
 import torch
 from pathlib import Path
 from diffusers import AutoPipelineForText2Image
-from optimum.quanto import freeze, qint8, quantize
 
 # User-friendly model name mapping
 MODEL_DICT = {
     "sd15": "runwayml/stable-diffusion-v1-5",           # Fast, low memory
     "sdxl": "stabilityai/sdxl-turbo",                   # Best balance
-    "flux": "black-forest-labs/FLUX.1-schnell",         # Best quality (Requires QUANTIZE=True on <24GB VRAM GPUs)
+    "flux": "black-forest-labs/FLUX.1-schnell",         # Best quality
 }
 
 def parse_args():
@@ -27,17 +26,14 @@ def parse_args():
         default=1,
         help="Number of images to generate (SEED will iterate from 0 to num-images-1)"
     )
-    parser.add_argument(
-        "--no-quantize",
-        dest="quantize",
-        action="store_false",
-        default=True,
-        help="Disable quantization (use full precision). Default: quantization enabled"
-    )
     return parser.parse_args()
 
 args = parse_args()
-QUANTIZE = args.quantize
+
+# Create output directory for generated images
+output_dir = Path(__file__).parent / "generated_images"
+output_dir.mkdir(exist_ok=True)
+print(f"Output directory: {output_dir}")
 
 # Find all .txt files in logos_and_descriptions directory
 logos_dir = Path(__file__).parent / "logos_and_descriptions"
@@ -65,15 +61,7 @@ for model_name in args.models:
         use_safetensors=True
     )
     
-    # 2. Apply Quantization (Useful for saving VRAM on GPU)
-    if QUANTIZE:
-        print("Quantizing model to 8-bit to save VRAM...")
-        # This shrinks the heavy Transformer/UNet part of the model
-        # We use qint8 which is a good balance of speed/quality
-        quantize(pipe.transformer if hasattr(pipe, 'transformer') else pipe.unet, weights=qint8)
-        freeze(pipe.transformer if hasattr(pipe, 'transformer') else pipe.unet)
-    
-    # 3. Move model to GPU
+    # 2. Move model to GPU
     # Move the entire pipeline to CUDA for GPU acceleration
     pipe = pipe.to("cuda")
     
@@ -98,11 +86,11 @@ for model_name in args.models:
         
         # Generate images for each seed
         for seed in range(args.num_images):
-            output_filename = f"{base_name}{seed}.png"
+            output_filename = output_dir / f"{base_name}_{model_name}{seed}.png"
             
             # Skip if file already exists
-            if os.path.exists(output_filename):
-                print(f"  Skipping {output_filename} (already exists)")
+            if output_filename.exists():
+                print(f"  Skipping {output_filename.name} (already exists)")
                 continue
             
             print(f"  Generating image {seed + 1}/{args.num_images} with seed={seed}...")
