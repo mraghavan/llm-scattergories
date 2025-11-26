@@ -1,24 +1,11 @@
 import argparse
-import csv
 import re
-from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Iterable, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
+import pandas as pd
 import torch
 from PIL import Image
-
-
-@dataclass
-class ImagePairResult:
-    base_name: str
-    original_path: str
-    generated_path: str
-    model_name: Optional[str]
-    seed: Optional[int]
-    lpips: Optional[float]
-    clip_cosine: Optional[float]
-    dino_cosine: Optional[float]
 
 
 def parse_args() -> argparse.Namespace:
@@ -241,19 +228,14 @@ def parse_model_and_seed(base: str, generated_name: str) -> Tuple[Optional[str],
     return model_name, seed
 
 
-def write_results_csv(results: Iterable[ImagePairResult], output_path: Path) -> None:
-    rows = [asdict(r) for r in results]
-    if not rows:
+def write_results_csv(results: List[Dict], output_path: Path) -> None:
+    if not results:
         print("No results to write.")
         return
 
-    fieldnames = list(rows[0].keys())
-    with output_path.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        for row in rows:
-            writer.writerow(row)
-    print(f"Wrote {len(rows)} rows to {output_path}")
+    df = pd.DataFrame(results)
+    df.to_csv(output_path, index=False)
+    print(f"Wrote {len(results)} rows to {output_path}")
 
 
 def main() -> None:
@@ -286,7 +268,7 @@ def main() -> None:
     if not args.no_dino:
         dino_model, dino_transform = setup_dino(device)
 
-    results: List[ImagePairResult] = []
+    results: List[Dict] = []
 
     for orig_path, gen_paths in pairs:
         print(f"\nOriginal: {orig_path.name}")
@@ -296,13 +278,13 @@ def main() -> None:
             print(f"  Generated: {gen_path.name}")
             gen_img = load_pil_image(gen_path)
 
-            # Resize generated to match original for pixel-wise metrics
+            # Resize generated to match original for LPIPS
             if gen_img.size != orig_img.size:
                 gen_img_resized = resize_to_match(gen_img, orig_img.size)
             else:
                 gen_img_resized = gen_img
 
-            # Prepare tensors for pixel/LPIPS metrics
+            # Prepare tensors for LPIPS
             orig_tensor = to_tensor(orig_img, device)
             gen_tensor = to_tensor(gen_img_resized, device)
 
@@ -325,18 +307,14 @@ def main() -> None:
 
             model_name, seed = parse_model_and_seed(orig_path.stem, gen_path.name)
 
-            results.append(
-                ImagePairResult(
-                    base_name=orig_path.stem,
-                    original_path=str(orig_path),
-                    generated_path=str(gen_path),
-                    model_name=model_name,
-                    seed=seed,
-                    lpips=lpips_val,
-                    clip_cosine=clip_cosine,
-                    dino_cosine=dino_cosine,
-                )
-            )
+            results.append({
+                "base_name": orig_path.stem,
+                "model_name": model_name,
+                "seed": seed,
+                "lpips": lpips_val,
+                "clip_cosine": clip_cosine,
+                "dino_cosine": dino_cosine,
+            })
 
     output_path = logos_dir / args.output_csv
     write_results_csv(results, output_path)
