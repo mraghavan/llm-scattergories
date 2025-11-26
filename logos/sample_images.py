@@ -44,6 +44,21 @@ def parse_args():
         default=5,
         help="Maximum number of samples from dataset to process (default: 5)"
     )
+    parser.add_argument(
+        "--enable-cpu-offload",
+        action="store_true",
+        help="Enable sequential CPU offload for memory efficiency (slower but uses less VRAM)"
+    )
+    parser.add_argument(
+        "--enable-compile",
+        action="store_true",
+        help="Enable torch.compile() for faster inference (requires PyTorch 2.0+)"
+    )
+    parser.add_argument(
+        "--enable-attention-slicing",
+        action="store_true",
+        help="Enable attention slicing to reduce memory usage (slight speed cost)"
+    )
     return parser.parse_args()
 
 args = parse_args()
@@ -107,18 +122,63 @@ for model_name in args.models:
             use_safetensors=True
         )
     
-    # 2. Move model to GPU
-    # Move the entire pipeline to CUDA for GPU acceleration
-    if model_name == "cogview4":
-        # CogView4 benefits from CPU offload for memory efficiency
-        pipe.enable_model_cpu_offload()
+    # 2. Move model to GPU and apply optimizations
+    # Enable VAE optimizations for all models (helps with 1024x1024 resolution)
+    if hasattr(pipe, 'vae'):
         pipe.vae.enable_slicing()
         pipe.vae.enable_tiling()
+    
+    # Memory management: CPU offload or direct GPU
+    if model_name == "cogview4" or args.enable_cpu_offload:
+        # Sequential CPU offload: moves model components between CPU/GPU as needed
+        # Slower but uses less VRAM - useful for large models or limited GPU memory
+        pipe.enable_model_cpu_offload()
+        print("  Enabled sequential CPU offload")
     else:
         pipe = pipe.to("cuda")
     
-    # Optional: Helps with memory for SDXL/Flux at slight speed cost
-    # pipe.enable_attention_slicing() 
+    # Attention slicing: reduces memory at slight speed cost
+    if args.enable_attention_slicing:
+        if hasattr(pipe, 'enable_attention_slicing'):
+            pipe.enable_attention_slicing()
+            print("  Enabled attention slicing")
+    
+    # Model compilation: can significantly speed up inference (PyTorch 2.0+)
+    if args.enable_compile:
+        try:
+            if hasattr(torch, 'compile'):
+                pipe.unet = torch.compile(pipe.unet, mode="reduce-overhead")
+                if hasattr(pipe, 'transformer') and pipe.transformer is not None:
+                    pipe.transformer = torch.compile(pipe.transformer, mode="reduce-overhead")
+                print("  Enabled torch.compile() optimization")
+            else:
+                print("  Warning: torch.compile() not available (requires PyTorch 2.0+)")
+        except Exception as e:
+            print(f"  Warning: torch.compile() failed: {e}")
+    
+    # Warmup run for compiled models (first inference is slower)
+    if args.enable_compile and hasattr(torch, 'compile'):
+        print("  Running warmup inference...")
+        try:
+            warmup_generator = torch.Generator(device="cuda").manual_seed(0)
+            warmup_kwargs = kwargs.copy()
+            if model_name == "sd3":
+                warmup_kwargs = {"guidance_scale": 5.0, "num_inference_steps": 1}  # Faster warmup
+            elif model_name in ["cogview4", "playground"]:
+                warmup_kwargs = {"guidance_scale": 3.0, "num_inference_steps": 1}  # Faster warmup
+            else:
+                warmup_kwargs = {"guidance_scale": 0.0, "num_inference_steps": 1} if "turbo" in MODEL_ID or "schnell" in MODEL_ID else {"num_inference_steps": 1}
+            
+            _ = pipe(
+                prompt="warmup",
+                generator=warmup_generator,
+                width=1024,
+                height=1024,
+                **warmup_kwargs
+            ).images[0]
+            print("  Warmup complete")
+        except Exception as e:
+            print(f"  Warning: Warmup failed: {e}")
     
     # 3. Generate images for each prompt file
     # Note: "guidance_scale=0.0" is specific to Turbo/Schnell models. 
@@ -129,6 +189,9 @@ for model_name in args.models:
         kwargs = {"guidance_scale": 3.5, "num_inference_steps": 50}
     elif model_name == "playground":
         kwargs = {"guidance_scale": 3.0, "num_inference_steps": 50}
+    elif model_name == "flux1.dev":
+        # FLUX.1-dev: higher quality, more steps than schnell variant
+        kwargs = {"guidance_scale": 3.5, "num_inference_steps": 28}
     else:
         kwargs = {"guidance_scale": 0.0, "num_inference_steps": 2} if "turbo" in MODEL_ID or "schnell" in MODEL_ID else {}
     
