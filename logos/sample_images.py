@@ -2,7 +2,7 @@ import argparse
 import torch
 from pathlib import Path
 
-from diffusers import AutoPipelineForText2Image, StableDiffusion3Pipeline
+from diffusers import AutoPipelineForText2Image, StableDiffusion3Pipeline, CogView4Pipeline
 
 # User-friendly model name mapping
 MODEL_DICT = {
@@ -10,6 +10,7 @@ MODEL_DICT = {
     "sdxl": "stabilityai/sdxl-turbo",                          # Best balance
     "flux": "black-forest-labs/FLUX.1-schnell",                # Best quality
     "sd3": "stabilityai/stable-diffusion-3-medium-diffusers",  # Highest fidelity
+    "cogview4": "zai-org/CogView4-6B",                        # Chinese text accuracy, high quality
 }
 
 def parse_args():
@@ -62,6 +63,11 @@ for model_name in args.models:
             torch_dtype=torch.float16,
             use_safetensors=True
         )
+    elif model_name == "cogview4":
+        pipe = CogView4Pipeline.from_pretrained(
+            MODEL_ID,
+            torch_dtype=torch.bfloat16
+        )
     else:
         pipe = AutoPipelineForText2Image.from_pretrained(
             MODEL_ID,
@@ -71,7 +77,13 @@ for model_name in args.models:
     
     # 2. Move model to GPU
     # Move the entire pipeline to CUDA for GPU acceleration
-    pipe = pipe.to("cuda")
+    if model_name == "cogview4":
+        # CogView4 benefits from CPU offload for memory efficiency
+        pipe.enable_model_cpu_offload()
+        pipe.vae.enable_slicing()
+        pipe.vae.enable_tiling()
+    else:
+        pipe = pipe.to("cuda")
     
     # Optional: Helps with memory for SDXL/Flux at slight speed cost
     # pipe.enable_attention_slicing() 
@@ -81,6 +93,8 @@ for model_name in args.models:
     # For standard SD1.5/SDXL, remove it or set it to 7.5
     if model_name == "sd3":
         kwargs = {"guidance_scale": 5.0, "num_inference_steps": 28}
+    elif model_name == "cogview4":
+        kwargs = {"guidance_scale": 3.5, "num_inference_steps": 50}
     else:
         kwargs = {"guidance_scale": 0.0, "num_inference_steps": 2} if "turbo" in MODEL_ID or "schnell" in MODEL_ID else {}
     
@@ -109,9 +123,19 @@ for model_name in args.models:
             print(f"  Generating image {seed + 1}/{args.num_images} with seed={seed}...")
             generator = torch.Generator(device="cuda").manual_seed(seed)
             
-            image = pipe(prompt=prompt,
-                         generator=generator,
-                         **kwargs).images[0]
+            # CogView4 requires width and height parameters (must be divisible by 32, between 512-2048)
+            if model_name == "cogview4":
+                image = pipe(
+                    prompt=prompt,
+                    generator=generator,
+                    width=1024,
+                    height=1024,
+                    **kwargs
+                ).images[0]
+            else:
+                image = pipe(prompt=prompt,
+                             generator=generator,
+                             **kwargs).images[0]
             
             image.save(output_filename)
             print(f"  Saved to {output_filename}")
