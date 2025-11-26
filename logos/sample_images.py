@@ -97,7 +97,9 @@ for model_name in args.models:
         
         # Generate images for each seed
         for seed in range(args.num_images):
-            output_filename = output_dir / f"{base_name}_{model_name}{seed}.png"
+            # Use an underscore separator between model name and seed to avoid ambiguity
+            # Example: "duolingo_standard_sd3_0.png" instead of "duolingo_standard_sd30.png"
+            output_filename = output_dir / f"{base_name}_{model_name}_{seed}.png"
             
             # Skip if file already exists
             if output_filename.exists():
