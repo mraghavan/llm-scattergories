@@ -39,8 +39,8 @@ def parse_args():
     parser.add_argument(
         "--max-samples",
         type=int,
-        default=None,
-        help="Maximum number of samples from dataset to process (default: all)"
+        default=5,
+        help="Maximum number of samples from dataset to process (default: 5)"
     )
     return parser.parse_args()
 
@@ -60,10 +60,9 @@ print(f"Loaded {len(dataset)} samples from dataset (split: {args.dataset_split})
 print("Applying deterministic shuffle (seed=0)...")
 dataset = dataset.shuffle(seed=0)
 
-# Limit number of samples if specified
-if args.max_samples is not None:
-    dataset = dataset.select(range(min(args.max_samples, len(dataset))))
-    print(f"Processing {len(dataset)} samples (limited by --max-samples)")
+# Limit number of samples
+dataset = dataset.select(range(min(args.max_samples, len(dataset))))
+print(f"Processing {len(dataset)} samples (limited by --max-samples={args.max_samples})")
 
 # Verify dataset has required fields
 if "caption" not in dataset.column_names:
