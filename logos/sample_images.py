@@ -3,7 +3,16 @@ import torch
 from pathlib import Path
 
 from datasets import load_dataset
-from diffusers import AutoPipelineForText2Image, StableDiffusion3Pipeline, CogView4Pipeline
+from diffusers import (
+    AutoPipelineForText2Image, 
+    StableDiffusion3Pipeline, 
+    CogView4Pipeline,
+    PixArtSigmaPipeline,
+    UNet2DConditionModel,
+    EulerDiscreteScheduler
+)
+from huggingface_hub import hf_hub_download
+from safetensors.torch import load_file
 from PIL import Image
 
 # User-friendly model name mapping
@@ -15,6 +24,8 @@ MODEL_DICT = {
     "sd3": "stabilityai/stable-diffusion-3-medium-diffusers",  # Highest fidelity
     "cogview4": "zai-org/CogView4-6B",                        # Chinese text accuracy, high quality
     "playground": "playgroundai/playground-v2.5-1024px-aesthetic",  # High aesthetic quality (only v2.5 variant available)
+    "sdxl-lightning": "ByteDance/SDXL-Lightning",             # Extremely fast (4-step)
+    "pixart-sigma": "PixArt-alpha/PixArt-Sigma-XL-2-1024-MS", # High quality DiT
 }
 
 def parse_args():
@@ -115,6 +126,36 @@ for model_name in args.models:
             variant="fp16",
             use_safetensors=True
         )
+    elif model_name == "sdxl-lightning":
+        # Load SDXL Base 1.0
+        base = "stabilityai/stable-diffusion-xl-base-1.0"
+        repo = "ByteDance/SDXL-Lightning"
+        ckpt = "sdxl_lightning_4step_unet.safetensors" # Use 4-step checkpoint
+
+        # Determine device
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        # Load UNet
+        unet = UNet2DConditionModel.from_config(base, subfolder="unet").to(device, torch.float16)
+        unet.load_state_dict(load_file(hf_hub_download(repo, ckpt), device=device))
+        
+        # Load Pipeline
+        pipe = AutoPipelineForText2Image.from_pretrained(
+            base, 
+            unet=unet, 
+            torch_dtype=torch.float16, 
+            variant="fp16"
+        )
+        
+        # Ensure proper scheduler
+        pipe.scheduler = EulerDiscreteScheduler.from_config(pipe.scheduler.config, timestep_spacing="trailing")
+        
+    elif model_name == "pixart-sigma":
+        pipe = PixArtSigmaPipeline.from_pretrained(
+            MODEL_ID, 
+            torch_dtype=torch.float16,
+            use_safetensors=True
+        )
     else:
         pipe = AutoPipelineForText2Image.from_pretrained(
             MODEL_ID,
@@ -135,7 +176,9 @@ for model_name in args.models:
         pipe.enable_model_cpu_offload()
         print("  Enabled sequential CPU offload")
     else:
-        pipe = pipe.to("cuda")
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        pipe = pipe.to(device)
+        print(f"  Moved model to {device}")
     
     # Attention slicing: reduces memory at slight speed cost
     if args.enable_attention_slicing:
@@ -160,12 +203,15 @@ for model_name in args.models:
     if args.enable_compile and hasattr(torch, 'compile'):
         print("  Running warmup inference...")
         try:
-            warmup_generator = torch.Generator(device="cuda").manual_seed(0)
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            warmup_generator = torch.Generator(device=device).manual_seed(0)
             warmup_kwargs = kwargs.copy()
             if model_name == "sd3":
                 warmup_kwargs = {"guidance_scale": 5.0, "num_inference_steps": 1}  # Faster warmup
-            elif model_name in ["cogview4", "playground"]:
+            elif model_name in ["cogview4", "playground", "pixart-sigma"]:
                 warmup_kwargs = {"guidance_scale": 3.0, "num_inference_steps": 1}  # Faster warmup
+            elif model_name == "sdxl-lightning":
+                warmup_kwargs = {"guidance_scale": 0.0, "num_inference_steps": 1}
             else:
                 warmup_kwargs = {"guidance_scale": 0.0, "num_inference_steps": 1} if "turbo" in MODEL_ID or "schnell" in MODEL_ID else {"num_inference_steps": 1}
             
@@ -192,6 +238,10 @@ for model_name in args.models:
     elif model_name == "flux1.dev":
         # FLUX.1-dev: higher quality, more steps than schnell variant
         kwargs = {"guidance_scale": 3.5, "num_inference_steps": 28}
+    elif model_name == "sdxl-lightning":
+        kwargs = {"guidance_scale": 0.0, "num_inference_steps": 4}
+    elif model_name == "pixart-sigma":
+        kwargs = {"guidance_scale": 4.5, "num_inference_steps": 20}
     else:
         kwargs = {"guidance_scale": 0.0, "num_inference_steps": 2} if "turbo" in MODEL_ID or "schnell" in MODEL_ID else {}
     
@@ -227,7 +277,8 @@ for model_name in args.models:
                 continue
             
             print(f"  Generating image {seed + 1}/{args.num_images} with seed={seed}...")
-            generator = torch.Generator(device="cuda").manual_seed(seed)
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            generator = torch.Generator(device=device).manual_seed(seed)
             
             # Use 1024x1024 for all models for fair comparison
             # (SD1.5 defaults to 512x512, but we standardize to 1024x1024)
