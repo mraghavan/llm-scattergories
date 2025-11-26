@@ -7,10 +7,11 @@ from diffusers import AutoPipelineForText2Image, StableDiffusion3Pipeline, CogVi
 # User-friendly model name mapping
 MODEL_DICT = {
     "sd15": "runwayml/stable-diffusion-v1-5",                  # Fast, low memory
-    "sdxl": "stabilityai/stable-diffusion-xl-base-1.0",        # Best balance, higher quality
+    "sdxl": "stabilityai/sdxl-turbo",                          # Best balance
     "flux": "black-forest-labs/FLUX.1-schnell",                # Best quality
     "sd3": "stabilityai/stable-diffusion-3-medium-diffusers",  # Highest fidelity
     "cogview4": "zai-org/CogView4-6B",                        # Chinese text accuracy, high quality
+    "playground": "playgroundai/playground-v2.5-1024px-aesthetic",  # High aesthetic quality (only v2.5 variant available)
 }
 
 def parse_args():
@@ -56,7 +57,7 @@ for model_name in args.models:
     print(f"Loading {MODEL_ID}...")
     
     # 1. Load the model
-    # We use bfloat16 for most models; SD3 prefers float16 with its native pipeline
+    # We use bfloat16 for most models; SD3 and Playground prefer float16
     if model_name == "sd3":
         pipe = StableDiffusion3Pipeline.from_pretrained(
             MODEL_ID,
@@ -67,6 +68,13 @@ for model_name in args.models:
         pipe = CogView4Pipeline.from_pretrained(
             MODEL_ID,
             torch_dtype=torch.bfloat16
+        )
+    elif model_name == "playground":
+        pipe = AutoPipelineForText2Image.from_pretrained(
+            MODEL_ID,
+            torch_dtype=torch.float16,
+            variant="fp16",
+            use_safetensors=True
         )
     else:
         pipe = AutoPipelineForText2Image.from_pretrained(
@@ -95,9 +103,8 @@ for model_name in args.models:
         kwargs = {"guidance_scale": 5.0, "num_inference_steps": 28}
     elif model_name == "cogview4":
         kwargs = {"guidance_scale": 3.5, "num_inference_steps": 50}
-    elif model_name == "sdxl":
-        # SDXL base: use standard guidance and steps for better quality and diversity
-        kwargs = {"guidance_scale": 7.5, "num_inference_steps": 30}
+    elif model_name == "playground":
+        kwargs = {"guidance_scale": 3.0, "num_inference_steps": 50}
     else:
         kwargs = {"guidance_scale": 0.0, "num_inference_steps": 2} if "turbo" in MODEL_ID or "schnell" in MODEL_ID else {}
     
