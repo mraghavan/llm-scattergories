@@ -9,7 +9,8 @@ from diffusers import (
     CogView4Pipeline,
     PixArtSigmaPipeline,
     UNet2DConditionModel,
-    EulerDiscreteScheduler
+    EulerDiscreteScheduler,
+    FluxPipeline
 )
 from huggingface_hub import hf_hub_download
 from safetensors.torch import load_file
@@ -119,6 +120,11 @@ for model_name in args.models:
             MODEL_ID,
             torch_dtype=torch.bfloat16
         )
+    elif model_name == "flux1.dev":
+        pipe = FluxPipeline.from_pretrained(
+            MODEL_ID,
+            torch_dtype=torch.bfloat16
+        )
     elif model_name == "playground":
         pipe = AutoPipelineForText2Image.from_pretrained(
             MODEL_ID,
@@ -170,7 +176,7 @@ for model_name in args.models:
         pipe.vae.enable_tiling()
     
     # Memory management: CPU offload or direct GPU
-    if model_name == "cogview4" or args.enable_cpu_offload:
+    if args.enable_cpu_offload:
         # Sequential CPU offload: moves model components between CPU/GPU as needed
         # Slower but uses less VRAM - useful for large models or limited GPU memory
         pipe.enable_model_cpu_offload()
@@ -302,4 +308,5 @@ for model_name in args.models:
 print(f"\n{'='*60}")
 print("All generations complete!")
 print(f"{'='*60}")
+
 
