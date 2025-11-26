@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --gres=gpu:1
-#SBATCH --partition=cpu-gpu-v100
+#SBATCH --partition=cpu-gpu-rtx8000
 
 # Optional: HF token not strictly needed here unless models require auth
 export HF_TOKEN=$(cat ~/.HF_TOKEN)
