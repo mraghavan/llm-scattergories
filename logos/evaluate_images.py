@@ -5,14 +5,13 @@ from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 import torch
-from datasets import load_dataset
 from PIL import Image
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Evaluate similarity between original logos in logos_and_descriptions/ "
+            "Evaluate similarity between original logos (saved as *_original.png in generated_images/) "
             "and generated images in generated_images/ using multiple visual metrics."
         )
     )
@@ -43,18 +42,6 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable DINO metric.",
     )
-    parser.add_argument(
-        "--dataset-split",
-        type=str,
-        default="train",
-        help="Dataset split to use (default: 'train')"
-    )
-    parser.add_argument(
-        "--max-samples",
-        type=int,
-        default=None,
-        help="Maximum number of samples from dataset to process (default: all)"
-    )
     return parser.parse_args()
 
 
@@ -67,29 +54,29 @@ def get_device(arg_device: Optional[str]) -> torch.device:
 
 
 def find_image_pairs(
-    dataset,
     generated_dir: Path,
-) -> List[Tuple[int, Image.Image, List[Path]]]:
+) -> List[Tuple[str, Path, List[Path]]]:
     """
-    For each original logo image in the dataset, find all corresponding
-    generated images in generated_images.
+    For each original logo image saved in generated_images (as *_original.png),
+    find all corresponding generated images.
     
-    Returns list of tuples: (dataset_index, original_image, list_of_generated_paths)
+    Returns list of tuples: (base_name, original_image_path, list_of_generated_paths)
     """
-    pairs: List[Tuple[int, Image.Image, List[Path]]] = []
+    pairs: List[Tuple[str, Path, List[Path]]] = []
     
-    for idx in range(len(dataset)):
-        # Base name format: ios_icon_{idx}
-        base_name = f"ios_icon_{idx}"
-        gens = sorted(generated_dir.glob(f"{base_name}_*.png"))
+    # Find all original images
+    original_images = sorted(generated_dir.glob("*_original.png"))
+    
+    for orig_path in original_images:
+        # Extract base name (e.g., "ios_icon_0" from "ios_icon_0_original.png")
+        base_name = orig_path.stem.replace("_original", "")
+        
+        # Find all generated images for this base name (excluding the original)
+        gens = sorted([p for p in generated_dir.glob(f"{base_name}_*.png") 
+                      if p.name != orig_path.name])
         
         if gens:
-            # Load original image from dataset
-            original_image = dataset[idx]["image"]
-            if not isinstance(original_image, Image.Image):
-                original_image = Image.fromarray(original_image)
-            original_image = original_image.convert("RGB")
-            pairs.append((idx, original_image, gens))
+            pairs.append((base_name, orig_path, gens))
     
     return pairs
 
@@ -266,21 +253,7 @@ def main() -> None:
     device = get_device(args.device)
     print(f"Using device: {device}")
 
-    # Load the iOS app icons dataset from Hugging Face
-    print("Loading iOS app icons dataset from Hugging Face...")
-    dataset = load_dataset("ppierzc/ios-app-icons", split=args.dataset_split)
-    print(f"Loaded {len(dataset)} samples from dataset (split: {args.dataset_split})")
-    
-    # Apply deterministic shuffle with seed 0
-    print("Applying deterministic shuffle (seed=0)...")
-    dataset = dataset.shuffle(seed=0)
-    
-    # Limit number of samples if specified
-    if args.max_samples is not None:
-        dataset = dataset.select(range(min(args.max_samples, len(dataset))))
-        print(f"Processing {len(dataset)} samples (limited by --max-samples)")
-
-    pairs = find_image_pairs(dataset, generated_dir)
+    pairs = find_image_pairs(generated_dir)
     print(f"Found {len(pairs)} original logo(s) with at least one generated image.")
 
     # Set up metrics
@@ -301,9 +274,9 @@ def main() -> None:
 
     results: List[Dict] = []
 
-    for dataset_idx, orig_img, gen_paths in pairs:
-        base_name = f"ios_icon_{dataset_idx}"
-        print(f"\nOriginal: {base_name} (dataset index {dataset_idx})")
+    for base_name, orig_path, gen_paths in pairs:
+        print(f"\nOriginal: {orig_path.name}")
+        orig_img = load_pil_image(orig_path)
 
         for gen_path in gen_paths:
             print(f"  Generated: {gen_path.name}")

@@ -4,6 +4,7 @@ from pathlib import Path
 
 from datasets import load_dataset
 from diffusers import AutoPipelineForText2Image, StableDiffusion3Pipeline, CogView4Pipeline
+from PIL import Image
 
 # User-friendly model name mapping
 MODEL_DICT = {
@@ -139,6 +140,16 @@ for model_name in args.models:
         
         print(f"\nProcessing sample {idx + 1}/{len(dataset)}: {base_name}")
         print(f"Prompt: {prompt[:100]}..." if len(prompt) > 100 else f"Prompt: {prompt}")
+        
+        # Save original image for evaluation
+        original_filename = output_dir / f"{base_name}_original.png"
+        if not original_filename.exists():
+            original_image = sample["image"]
+            if not isinstance(original_image, Image.Image):
+                original_image = Image.fromarray(original_image)
+            original_image = original_image.convert("RGB")
+            original_image.save(original_filename)
+            print(f"  Saved original image to {original_filename.name}")
         
         # Generate images for each seed
         for seed in range(args.num_images):
