@@ -2,6 +2,7 @@ import argparse
 import torch
 from pathlib import Path
 
+from datasets import load_dataset
 from diffusers import AutoPipelineForText2Image, StableDiffusion3Pipeline, CogView4Pipeline
 
 # User-friendly model name mapping
@@ -29,6 +30,18 @@ def parse_args():
         default=1,
         help="Number of images to generate (SEED will iterate from 0 to num-images-1)"
     )
+    parser.add_argument(
+        "--dataset-split",
+        type=str,
+        default="train",
+        help="Dataset split to use (default: 'train')"
+    )
+    parser.add_argument(
+        "--max-samples",
+        type=int,
+        default=None,
+        help="Maximum number of samples from dataset to process (default: all)"
+    )
     return parser.parse_args()
 
 args = parse_args()
@@ -38,15 +51,25 @@ output_dir = Path(__file__).parent / "generated_images"
 output_dir.mkdir(exist_ok=True)
 print(f"Output directory: {output_dir}")
 
-# Find all .txt files in logos_and_descriptions directory
-logos_dir = Path(__file__).parent / "logos_and_descriptions"
-txt_files = list(logos_dir.glob("*.txt"))
+# Load the iOS app icons dataset from Hugging Face
+print("Loading iOS app icons dataset from Hugging Face...")
+dataset = load_dataset("ppierzc/ios-app-icons", split=args.dataset_split)
+print(f"Loaded {len(dataset)} samples from dataset (split: {args.dataset_split})")
 
-if not txt_files:
-    print(f"No .txt files found in {logos_dir}")
-    exit(1)
+# Apply deterministic shuffle with seed 0
+print("Applying deterministic shuffle (seed=0)...")
+dataset = dataset.shuffle(seed=0)
 
-print(f"Found {len(txt_files)} prompt file(s) in {logos_dir}")
+# Limit number of samples if specified
+if args.max_samples is not None:
+    dataset = dataset.select(range(min(args.max_samples, len(dataset))))
+    print(f"Processing {len(dataset)} samples (limited by --max-samples)")
+
+# Verify dataset has required fields
+if "caption" not in dataset.column_names:
+    raise ValueError("Dataset must have a 'caption' field")
+if "image" not in dataset.column_names:
+    raise ValueError("Dataset must have an 'image' field")
 
 # Generate images for each model
 for model_name in args.models:
@@ -108,21 +131,20 @@ for model_name in args.models:
     else:
         kwargs = {"guidance_scale": 0.0, "num_inference_steps": 2} if "turbo" in MODEL_ID or "schnell" in MODEL_ID else {}
     
-    for txt_file in txt_files:
-        # Read prompt from .txt file
-        with open(txt_file, 'r') as f:
-            prompt = f.read().strip()
+    for idx, sample in enumerate(dataset):
+        # Get prompt from caption field
+        prompt = sample["caption"].strip()
         
-        # Get base name (without .txt extension)
-        base_name = txt_file.stem
+        # Create base name from dataset index
+        base_name = f"ios_icon_{idx}"
         
-        print(f"\nProcessing prompt file: {txt_file.name}")
+        print(f"\nProcessing sample {idx + 1}/{len(dataset)}: {base_name}")
         print(f"Prompt: {prompt[:100]}..." if len(prompt) > 100 else f"Prompt: {prompt}")
         
         # Generate images for each seed
         for seed in range(args.num_images):
             # Use an underscore separator between model name and seed to avoid ambiguity
-            # Example: "duolingo_standard_sd3_0.png" instead of "duolingo_standard_sd30.png"
+            # Example: "ios_icon_0_sd3_0.png" instead of "ios_icon_0_sd30.png"
             output_filename = output_dir / f"{base_name}_{model_name}_{seed}.png"
             
             # Skip if file already exists
