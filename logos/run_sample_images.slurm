@@ -19,5 +19,6 @@ cd logos
 #   sbatch run_sample_images.slurm
 #   sbatch run_sample_images.slurm --models sd15 sdxl --num-images 5
 #   sbatch run_sample_images.slurm --models flux --num-images 3
+source ../venv/bin/activate
 time python3 sample_images.py "$@"
 
