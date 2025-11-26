@@ -95,6 +95,9 @@ for model_name in args.models:
         kwargs = {"guidance_scale": 5.0, "num_inference_steps": 28}
     elif model_name == "cogview4":
         kwargs = {"guidance_scale": 3.5, "num_inference_steps": 50}
+    elif model_name == "sdxl":
+        # SDXL Turbo: increase steps and use small guidance for more diversity
+        kwargs = {"guidance_scale": 1.0, "num_inference_steps": 10}
     else:
         kwargs = {"guidance_scale": 0.0, "num_inference_steps": 2} if "turbo" in MODEL_ID or "schnell" in MODEL_ID else {}
     
