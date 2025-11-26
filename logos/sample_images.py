@@ -123,19 +123,16 @@ for model_name in args.models:
             print(f"  Generating image {seed + 1}/{args.num_images} with seed={seed}...")
             generator = torch.Generator(device="cuda").manual_seed(seed)
             
-            # CogView4 requires width and height parameters (must be divisible by 32, between 512-2048)
-            if model_name == "cogview4":
-                image = pipe(
-                    prompt=prompt,
-                    generator=generator,
-                    width=1024,
-                    height=1024,
-                    **kwargs
-                ).images[0]
-            else:
-                image = pipe(prompt=prompt,
-                             generator=generator,
-                             **kwargs).images[0]
+            # Use 1024x1024 for all models for fair comparison
+            # (SD1.5 defaults to 512x512, but we standardize to 1024x1024)
+            # CogView4 requires explicit width/height (must be divisible by 32, between 512-2048)
+            image = pipe(
+                prompt=prompt,
+                generator=generator,
+                width=1024,
+                height=1024,
+                **kwargs
+            ).images[0]
             
             image.save(output_filename)
             print(f"  Saved to {output_filename}")
