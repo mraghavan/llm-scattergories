@@ -12,8 +12,6 @@
 # Optional: HF token not strictly needed here unless models require auth
 export HF_TOKEN=$(cat ~/.HF_TOKEN)
 
-# Change to the logos directory to run the script
-cd logos
 
 # Usage examples:
 #   sbatch run_evaluate_images.slurm
