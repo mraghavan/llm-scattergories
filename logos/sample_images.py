@@ -80,7 +80,7 @@ for model_name in args.models:
     # Note: "guidance_scale=0.0" is specific to Turbo/Schnell models. 
     # For standard SD1.5/SDXL, remove it or set it to 7.5
     if model_name == "sd3":
-        kwargs = {"guidance_scale": 7.0, "num_inference_steps": 28}
+        kwargs = {"guidance_scale": 5.0, "num_inference_steps": 28}
     else:
         kwargs = {"guidance_scale": 0.0, "num_inference_steps": 2} if "turbo" in MODEL_ID or "schnell" in MODEL_ID else {}
     
