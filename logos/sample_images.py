@@ -7,7 +7,7 @@ from diffusers import AutoPipelineForText2Image, StableDiffusion3Pipeline, CogVi
 # User-friendly model name mapping
 MODEL_DICT = {
     "sd15": "runwayml/stable-diffusion-v1-5",                  # Fast, low memory
-    "sdxl": "stabilityai/sdxl-turbo",                          # Best balance
+    "sdxl": "stabilityai/stable-diffusion-xl-base-1.0",        # Best balance, higher quality
     "flux": "black-forest-labs/FLUX.1-schnell",                # Best quality
     "sd3": "stabilityai/stable-diffusion-3-medium-diffusers",  # Highest fidelity
     "cogview4": "zai-org/CogView4-6B",                        # Chinese text accuracy, high quality
@@ -96,8 +96,8 @@ for model_name in args.models:
     elif model_name == "cogview4":
         kwargs = {"guidance_scale": 3.5, "num_inference_steps": 50}
     elif model_name == "sdxl":
-        # SDXL Turbo: increase steps and use small guidance for more diversity
-        kwargs = {"guidance_scale": 1.0, "num_inference_steps": 10}
+        # SDXL base: use standard guidance and steps for better quality and diversity
+        kwargs = {"guidance_scale": 7.5, "num_inference_steps": 30}
     else:
         kwargs = {"guidance_scale": 0.0, "num_inference_steps": 2} if "turbo" in MODEL_ID or "schnell" in MODEL_ID else {}
     
