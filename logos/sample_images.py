@@ -11,6 +11,7 @@ MODEL_DICT = {
     "sd15": "runwayml/stable-diffusion-v1-5",                  # Fast, low memory
     "sdxl": "stabilityai/sdxl-turbo",                          # Best balance
     "flux": "black-forest-labs/FLUX.1-schnell",                # Best quality
+    "flux1.dev": "black-forest-labs/FLUX.1-dev",               # FLUX.1-dev model
     "sd3": "stabilityai/stable-diffusion-3-medium-diffusers",  # Highest fidelity
     "cogview4": "zai-org/CogView4-6B",                        # Chinese text accuracy, high quality
     "playground": "playgroundai/playground-v2.5-1024px-aesthetic",  # High aesthetic quality (only v2.5 variant available)
