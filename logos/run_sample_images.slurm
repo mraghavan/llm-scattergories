@@ -11,8 +11,6 @@
 
 export HF_TOKEN=$(cat ~/.HF_TOKEN)
 
-# Change to the logos directory to run the script
-cd logos
 
 # Pass all arguments to the Python script
 # Usage examples:
