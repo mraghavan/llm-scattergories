@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 import torch
+from datasets import load_dataset
 from PIL import Image
 
 
@@ -42,6 +43,18 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable DINO metric.",
     )
+    parser.add_argument(
+        "--dataset-split",
+        type=str,
+        default="train",
+        help="Dataset split to use (default: 'train')"
+    )
+    parser.add_argument(
+        "--max-samples",
+        type=int,
+        default=None,
+        help="Maximum number of samples from dataset to process (default: all)"
+    )
     return parser.parse_args()
 
 
@@ -54,26 +67,30 @@ def get_device(arg_device: Optional[str]) -> torch.device:
 
 
 def find_image_pairs(
-    logos_dir: Path,
+    dataset,
     generated_dir: Path,
-) -> List[Tuple[Path, List[Path]]]:
+) -> List[Tuple[int, Image.Image, List[Path]]]:
     """
-    For each original logo image in logos_and_descriptions, find all corresponding
+    For each original logo image in the dataset, find all corresponding
     generated images in generated_images.
+    
+    Returns list of tuples: (dataset_index, original_image, list_of_generated_paths)
     """
-    originals_dir = logos_dir / "logos_and_descriptions"
-    generated_dir = generated_dir
-
-    originals = sorted(originals_dir.glob("*.png"))
-    if not originals:
-        raise FileNotFoundError(f"No original .png logos found in {originals_dir}")
-
-    pairs: List[Tuple[Path, List[Path]]] = []
-    for orig in originals:
-        base = orig.stem  # e.g., "duolingo_standard"
-        gens = sorted(generated_dir.glob(f"{base}_*.png"))
+    pairs: List[Tuple[int, Image.Image, List[Path]]] = []
+    
+    for idx in range(len(dataset)):
+        # Base name format: ios_icon_{idx}
+        base_name = f"ios_icon_{idx}"
+        gens = sorted(generated_dir.glob(f"{base_name}_*.png"))
+        
         if gens:
-            pairs.append((orig, gens))
+            # Load original image from dataset
+            original_image = dataset[idx]["image"]
+            if not isinstance(original_image, Image.Image):
+                original_image = Image.fromarray(original_image)
+            original_image = original_image.convert("RGB")
+            pairs.append((idx, original_image, gens))
+    
     return pairs
 
 
@@ -212,7 +229,7 @@ def parse_model_and_seed(base: str, generated_name: str) -> Tuple[Optional[str],
         {base}_{model}_{seed}.png
 
     Example:
-        duolingo_standard_sd3_0.png -> model="sd3", seed=0
+        ios_icon_0_sd3_0.png -> model="sd3", seed=0
     """
     stem = Path(generated_name).stem
     if not stem.startswith(base + "_"):
@@ -249,7 +266,21 @@ def main() -> None:
     device = get_device(args.device)
     print(f"Using device: {device}")
 
-    pairs = find_image_pairs(logos_dir, generated_dir)
+    # Load the iOS app icons dataset from Hugging Face
+    print("Loading iOS app icons dataset from Hugging Face...")
+    dataset = load_dataset("ppierzc/ios-app-icons", split=args.dataset_split)
+    print(f"Loaded {len(dataset)} samples from dataset (split: {args.dataset_split})")
+    
+    # Apply deterministic shuffle with seed 0
+    print("Applying deterministic shuffle (seed=0)...")
+    dataset = dataset.shuffle(seed=0)
+    
+    # Limit number of samples if specified
+    if args.max_samples is not None:
+        dataset = dataset.select(range(min(args.max_samples, len(dataset))))
+        print(f"Processing {len(dataset)} samples (limited by --max-samples)")
+
+    pairs = find_image_pairs(dataset, generated_dir)
     print(f"Found {len(pairs)} original logo(s) with at least one generated image.")
 
     # Set up metrics
@@ -270,9 +301,9 @@ def main() -> None:
 
     results: List[Dict] = []
 
-    for orig_path, gen_paths in pairs:
-        print(f"\nOriginal: {orig_path.name}")
-        orig_img = load_pil_image(orig_path)
+    for dataset_idx, orig_img, gen_paths in pairs:
+        base_name = f"ios_icon_{dataset_idx}"
+        print(f"\nOriginal: {base_name} (dataset index {dataset_idx})")
 
         for gen_path in gen_paths:
             print(f"  Generated: {gen_path.name}")
@@ -305,10 +336,10 @@ def main() -> None:
                 else None
             )
 
-            model_name, seed = parse_model_and_seed(orig_path.stem, gen_path.name)
+            model_name, seed = parse_model_and_seed(base_name, gen_path.name)
 
             results.append({
-                "base_name": orig_path.stem,
+                "base_name": base_name,
                 "model_name": model_name,
                 "seed": seed,
                 "lpips": lpips_val,
