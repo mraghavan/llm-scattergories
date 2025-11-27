@@ -127,6 +127,15 @@ def compute_lpips(
     orig: torch.Tensor,
     gen: torch.Tensor,
 ) -> Optional[float]:
+    """
+    Compute LPIPS (Learned Perceptual Image Patch Similarity) distance.
+    
+    LPIPS is a distance metric where lower values indicate greater similarity.
+    - Lower is better (0.0 = identical)
+    - Higher values indicate more perceptual difference
+    
+    Returns the raw LPIPS distance value.
+    """
     if metric is None:
         return None
     # LPIPS expects inputs in [-1, 1]
@@ -232,6 +241,59 @@ def parse_model_and_seed(base: str, generated_name: str) -> Tuple[Optional[str],
     return model_name, seed
 
 
+def normalize_optional_str(value: Optional[object]) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, float) and pd.isna(value):
+        return None
+    value_str = str(value).strip()
+    return value_str or None
+
+
+def normalize_optional_int(value: Optional[object]) -> Optional[int]:
+    if value is None:
+        return None
+    if isinstance(value, float):
+        if pd.isna(value):
+            return None
+        return int(value)
+    if isinstance(value, int):
+        return value
+    value_str = str(value).strip()
+    if not value_str:
+        return None
+    try:
+        return int(value_str)
+    except ValueError:
+        try:
+            return int(float(value_str))
+        except ValueError:
+            return None
+
+
+def make_result_key(
+    base_name: str,
+    model_name: Optional[object],
+    seed: Optional[object],
+) -> Tuple[str, Optional[str], Optional[int]]:
+    """Create a comparable key for identifying an image pair result."""
+    base = str(base_name).strip()
+    model = normalize_optional_str(model_name)
+    normalized_seed = normalize_optional_int(seed)
+    return base, model, normalized_seed
+
+
+def load_existing_results(output_path: Path) -> List[Dict]:
+    if not output_path.exists():
+        return []
+    try:
+        df = pd.read_csv(output_path)
+    except Exception as exc:  # pragma: no cover - defensive logging
+        print(f"Could not read existing results at {output_path}: {exc}")
+        return []
+    return df.to_dict("records")
+
+
 def write_results_csv(results: List[Dict], output_path: Path) -> None:
     if not results:
         print("No results to write.")
@@ -246,6 +308,7 @@ def main() -> None:
     args = parse_args()
     logos_dir = Path(__file__).parent
     generated_dir = logos_dir / "generated_images"
+    output_path = logos_dir / args.output_csv
 
     if not generated_dir.exists():
         raise FileNotFoundError(f"generated_images directory not found at {generated_dir}")
@@ -272,13 +335,30 @@ def main() -> None:
     if not args.no_dino:
         dino_model, dino_transform = setup_dino(device)
 
-    results: List[Dict] = []
+    existing_records = load_existing_results(output_path)
+    existing_keys = {
+        make_result_key(
+            record.get("base_name"),
+            record.get("model_name"),
+            record.get("seed"),
+        )
+        for record in existing_records
+        if record.get("base_name") is not None
+    }
+
+    new_results: List[Dict] = []
 
     for base_name, orig_path, gen_paths in pairs:
         print(f"\nOriginal: {orig_path.name}")
         orig_img = load_pil_image(orig_path)
 
         for gen_path in gen_paths:
+            model_name, seed = parse_model_and_seed(base_name, gen_path.name)
+            key = make_result_key(base_name, model_name, seed)
+            if key in existing_keys:
+                print(f"  Generated: {gen_path.name} (already computed, skipping)")
+                continue
+
             print(f"  Generated: {gen_path.name}")
             gen_img = load_pil_image(gen_path)
 
@@ -292,7 +372,7 @@ def main() -> None:
             orig_tensor = to_tensor(orig_img, device)
             gen_tensor = to_tensor(gen_img_resized, device)
 
-            # LPIPS
+            # LPIPS (lower is better - lower values indicate greater similarity)
             lpips_val = compute_lpips(lpips_metric, orig_tensor, gen_tensor) if lpips_metric is not None else None
 
             # CLIP cosine similarity
@@ -309,9 +389,7 @@ def main() -> None:
                 else None
             )
 
-            model_name, seed = parse_model_and_seed(base_name, gen_path.name)
-
-            results.append({
+            new_results.append({
                 "base_name": base_name,
                 "model_name": model_name,
                 "seed": seed,
@@ -320,12 +398,13 @@ def main() -> None:
                 "dino_cosine": dino_cosine,
             })
 
-    output_path = logos_dir / args.output_csv
-    write_results_csv(results, output_path)
+    combined_results = existing_records + new_results
+    write_results_csv(combined_results, output_path)
 
     print("\nDone. Summary:")
     print(f"  Originals with generated sets: {len(pairs)}")
-    print(f"  Total comparisons: {len(results)}")
+    print(f"  Newly computed comparisons: {len(new_results)}")
+    print(f"  Total comparisons written: {len(combined_results)}")
     print(f"  Output CSV: {output_path}")
 
 
