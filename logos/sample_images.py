@@ -23,7 +23,7 @@ MODEL_DICT = {
     "flux": "black-forest-labs/FLUX.1-schnell",                # Best quality
     "flux1.dev": "black-forest-labs/FLUX.1-dev",               # FLUX.1-dev model
     "sd3": "stabilityai/stable-diffusion-3-medium-diffusers",  # Highest fidelity
-    "sd35": "stabilityai/stable-diffusion-3.5-medium-diffusers",  # Latest SD3.5-medium
+    "sd35": "stabilityai/stable-diffusion-3.5-medium",  # Latest SD3.5-medium
     "cogview4": "zai-org/CogView4-6B",                        # Chinese text accuracy, high quality
     "playground": "playgroundai/playground-v2.5-1024px-aesthetic",  # High aesthetic quality (only v2.5 variant available)
     "sdxl-lightning": "ByteDance/SDXL-Lightning",             # Extremely fast (4-step)
