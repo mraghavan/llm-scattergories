@@ -23,6 +23,7 @@ MODEL_DICT = {
     "flux": "black-forest-labs/FLUX.1-schnell",                # Best quality
     "flux1.dev": "black-forest-labs/FLUX.1-dev",               # FLUX.1-dev model
     "sd3": "stabilityai/stable-diffusion-3-medium-diffusers",  # Highest fidelity
+    "sd35": "stabilityai/stable-diffusion-3.5-medium-diffusers",  # Latest SD3.5-medium
     "cogview4": "zai-org/CogView4-6B",                        # Chinese text accuracy, high quality
     "playground": "playgroundai/playground-v2.5-1024px-aesthetic",  # High aesthetic quality (only v2.5 variant available)
     "sdxl-lightning": "ByteDance/SDXL-Lightning",             # Extremely fast (4-step)
@@ -109,7 +110,7 @@ for model_name in args.models:
     
     # 1. Load the model
     # We use bfloat16 for most models; SD3 and Playground prefer float16
-    if model_name == "sd3":
+    if model_name in {"sd3", "sd35"}:
         pipe = StableDiffusion3Pipeline.from_pretrained(
             MODEL_ID,
             torch_dtype=torch.float16,
@@ -212,7 +213,7 @@ for model_name in args.models:
             device = "cuda" if torch.cuda.is_available() else "cpu"
             warmup_generator = torch.Generator(device=device).manual_seed(0)
             warmup_kwargs = kwargs.copy()
-            if model_name == "sd3":
+            if model_name in {"sd3", "sd35"}:
                 warmup_kwargs = {"guidance_scale": 5.0, "num_inference_steps": 1}  # Faster warmup
             elif model_name in ["cogview4", "playground", "pixart-sigma"]:
                 warmup_kwargs = {"guidance_scale": 3.0, "num_inference_steps": 1}  # Faster warmup
@@ -237,6 +238,8 @@ for model_name in args.models:
     # For standard SD1.5/SDXL, remove it or set it to 7.5
     if model_name == "sd3":
         kwargs = {"guidance_scale": 5.0, "num_inference_steps": 28}
+    elif model_name == "sd35":
+        kwargs = {"guidance_scale": 5.0, "num_inference_steps": 30}
     elif model_name == "cogview4":
         kwargs = {"guidance_scale": 3.5, "num_inference_steps": 50}
     elif model_name == "playground":
