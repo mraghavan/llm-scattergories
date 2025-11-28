@@ -1,6 +1,5 @@
 import argparse
 import re
-from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -13,8 +12,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Evaluate similarity between original logos and generated images. "
-            "Uses multiple visual metrics (LPIPS, CLIP, DINO). "
-            "Note: Pairwise comparisons have been moved to evaluate_pairwise.py"
+            "Uses multiple visual metrics (LPIPS, CLIP, DINO)."
         )
     )
     parser.add_argument(
@@ -22,12 +20,6 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="image_similarity_results.csv",
         help="Output CSV filename for original-to-generated comparisons (will be written in the logos directory).",
-    )
-    parser.add_argument(
-        "--pairwise-output-csv",
-        type=str,
-        default="pairwise_similarity_results.csv",
-        help="[DEPRECATED] Pairwise comparisons have been moved to evaluate_pairwise.py. This argument is ignored.",
     )
     parser.add_argument(
         "--device",
@@ -94,65 +86,6 @@ def find_image_pairs(
             pairs.append((base_name, orig_path, gens))
     
     return pairs
-
-
-def find_image_groups_by_base_name(
-    generated_dir: Path,
-) -> List[Tuple[str, List[Tuple[Path, str, int]]]]:
-    """
-    Group generated images by base_name only (across all models).
-    
-    Returns list of tuples: (base_name, list_of_(path, model_name, seed)_tuples)
-    """
-    # Find all generated images (excluding originals)
-    all_images = [p for p in generated_dir.glob("*.png") 
-                  if not p.name.endswith("_original.png")]
-    
-    # Group by base_name
-    groups: Dict[str, List[Tuple[Path, str, int]]] = defaultdict(list)
-    
-    for img_path in all_images:
-        # Try to extract base_name by looking for patterns like {base}_{model}_{seed}.png
-        stem = img_path.stem
-        
-        # Try to find a base name by looking for common patterns
-        # First, let's try to find all possible base names from original images
-        original_images = list(generated_dir.glob("*_original.png"))
-        base_names = {orig.stem.replace("_original", "") for orig in original_images}
-        
-        # Try each base name to see if this image matches
-        matched = False
-        for base_name in base_names:
-            if stem.startswith(base_name + "_"):
-                model_name, seed = parse_model_and_seed(base_name, img_path.name)
-                if model_name is not None and seed is not None:
-                    groups[base_name].append((img_path, model_name, seed))
-                    matched = True
-                    break
-        
-        # If no match found, try to infer base_name from the filename
-        # Pattern: {base}_{model}_{seed}.png
-        if not matched:
-            # Try to split by last two underscores
-            parts = stem.rsplit("_", 2)
-            if len(parts) == 3:
-                base_name, model_name, seed_str = parts
-                try:
-                    seed = int(seed_str)
-                    groups[base_name].append((img_path, model_name, seed))
-                except ValueError:
-                    pass
-    
-    # Convert to list and sort
-    result = []
-    for base_name, image_list in groups.items():
-        if len(image_list) > 1:  # Only include groups with at least 2 images for pairwise comparison
-            # Sort by model_name, then seed for consistent ordering
-            image_list.sort(key=lambda x: (x[1], x[2]))
-            result.append((base_name, image_list))
-    
-    result.sort(key=lambda x: x[0])  # Sort by base_name
-    return result
 
 
 def load_pil_image(path: Path) -> Image.Image:
@@ -486,32 +419,6 @@ def make_result_key_original(
     return base, model, normalized_seed
 
 
-def make_result_key_pairwise(
-    base_name: str,
-    model_name1: Optional[object],
-    seed1: Optional[object],
-    model_name2: Optional[object],
-    seed2: Optional[object],
-) -> Tuple[str, Optional[str], Optional[int], Optional[str], Optional[int]]:
-    """Create a comparable key for identifying a pairwise generated image comparison."""
-    base = str(base_name).strip()
-    model1 = normalize_optional_str(model_name1)
-    model2 = normalize_optional_str(model_name2)
-    norm_seed1 = normalize_optional_int(seed1)
-    norm_seed2 = normalize_optional_int(seed2)
-    
-    # Ensure consistent ordering: model1 <= model2, and if equal, seed1 <= seed2
-    if model1 is not None and model2 is not None:
-        if model1 > model2:
-            model1, model2 = model2, model1
-            norm_seed1, norm_seed2 = norm_seed2, norm_seed1
-        elif model1 == model2 and norm_seed1 is not None and norm_seed2 is not None:
-            if norm_seed1 > norm_seed2:
-                norm_seed1, norm_seed2 = norm_seed2, norm_seed1
-    
-    return base, model1, norm_seed1, model2, norm_seed2
-
-
 def load_existing_results(output_path: Path) -> List[Dict]:
     if not output_path.exists():
         return []
@@ -655,8 +562,6 @@ def main() -> None:
     print(f"  Newly computed comparisons: {len(new_original_results)}")
     print(f"  Total comparisons written: {len(combined_original_results)}")
     print(f"  Output CSV: {original_output_path}")
-    print(f"\nNote: Pairwise comparisons have been moved to evaluate_pairwise.py")
-    print(f"      Use run_evaluate_pairwise.slurm to run pairwise comparisons in parallel.")
 
 
 if __name__ == "__main__":

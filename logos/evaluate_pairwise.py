@@ -23,10 +23,10 @@ def parse_args() -> argparse.Namespace:
         help="Base name of the icon to process (e.g., 'ios_icon_0').",
     )
     parser.add_argument(
-        "--pairwise-output-csv",
+        "--output-dir",
         type=str,
-        default="pairwise_similarity_results.csv",
-        help="Output CSV filename for pairwise generated image comparisons (will be written in the logos directory).",
+        default="pairwise_results",
+        help="Directory to write individual CSV files (will be created in the logos directory). Each base_name gets its own CSV file.",
     )
     parser.add_argument(
         "--device",
@@ -402,13 +402,13 @@ def load_existing_results(output_path: Path) -> List[Dict]:
     return df.to_dict("records")
 
 
-def append_results_csv(new_results: List[Dict], output_path: Path) -> None:
-    """Append new results to existing CSV, or create new file if it doesn't exist."""
-    if not new_results:
-        print("No new results to write.")
+def write_results_csv(results: List[Dict], output_path: Path) -> None:
+    """Write results to CSV, appending to existing file if it exists and deduplicating."""
+    if not results:
+        print("No results to write.")
         return
 
-    # Load existing results
+    # Load existing results if file exists
     existing_results = load_existing_results(output_path)
     
     # Combine and deduplicate by key
@@ -426,7 +426,7 @@ def append_results_csv(new_results: List[Dict], output_path: Path) -> None:
     
     # Add only new results
     combined_results = existing_results.copy()
-    for new_record in new_results:
+    for new_record in results:
         key = make_result_key_pairwise(
             new_record.get("base_name"),
             new_record.get("model_name1"),
@@ -441,14 +441,19 @@ def append_results_csv(new_results: List[Dict], output_path: Path) -> None:
     # Write combined results
     df = pd.DataFrame(combined_results)
     df.to_csv(output_path, index=False)
-    print(f"Wrote {len(combined_results)} total rows to {output_path} ({len(new_results)} new)")
+    print(f"Wrote {len(combined_results)} total rows to {output_path} ({len(results)} new)")
 
 
 def main() -> None:
     args = parse_args()
     logos_dir = Path(__file__).parent
     generated_dir = logos_dir / "generated_images"
-    pairwise_output_path = logos_dir / args.pairwise_output_csv
+    output_dir = logos_dir / args.output_dir
+    output_dir.mkdir(exist_ok=True)
+    
+    # Create output path specific to this base_name
+    output_filename = f"pairwise_similarity_results_{args.base_name}.csv"
+    pairwise_output_path = output_dir / output_filename
 
     if not generated_dir.exists():
         raise FileNotFoundError(f"generated_images directory not found at {generated_dir}")
@@ -492,6 +497,43 @@ def main() -> None:
         return
     
     print(f"Found {len(image_list)} images for {args.base_name}")
+    
+    # Calculate expected number of pairwise comparisons
+    expected_pairs = len(image_list) * (len(image_list) - 1) // 2
+    
+    # Check if output file exists and contains all expected comparisons
+    if pairwise_output_path.exists():
+        print(f"Checking existing results file: {pairwise_output_path}")
+        existing_pairwise_records = load_existing_results(pairwise_output_path)
+        existing_pairwise_keys = {
+            make_result_key_pairwise(
+                record.get("base_name"),
+                record.get("model_name1"),
+                record.get("seed1"),
+                record.get("model_name2"),
+                record.get("seed2"),
+            )
+            for record in existing_pairwise_records
+            if record.get("base_name") == args.base_name  # Only count records for this base_name
+        }
+        
+        # Generate all expected pairwise keys from image_list
+        expected_keys = set()
+        for i in range(len(image_list)):
+            for j in range(i + 1, len(image_list)):
+                _, model_name1, seed1 = image_list[i]
+                _, model_name2, seed2 = image_list[j]
+                key = make_result_key_pairwise(args.base_name, model_name1, seed1, model_name2, seed2)
+                expected_keys.add(key)
+        
+        # Check if all expected keys are present
+        missing_keys = expected_keys - existing_pairwise_keys
+        if not missing_keys:
+            print(f"Output file already contains all {len(existing_pairwise_keys)} expected pairwise comparisons.")
+            print(f"All comparisons for {args.base_name} are complete. Exiting.")
+            return
+        else:
+            print(f"Output file contains {len(existing_pairwise_keys)} comparisons, missing {len(missing_keys)}. Continuing...")
     
     # Load existing results to skip already computed pairs
     existing_pairwise_records = load_existing_results(pairwise_output_path)
@@ -621,8 +663,8 @@ def main() -> None:
                 "dino_cosine": dino_cosine,
             })
     
-    # Append results to CSV
-    append_results_csv(new_pairwise_results, pairwise_output_path)
+    # Write results to CSV
+    write_results_csv(new_pairwise_results, pairwise_output_path)
     
     print(f"\nDone processing {args.base_name}:")
     print(f"  Images processed: {len(image_list)}")
