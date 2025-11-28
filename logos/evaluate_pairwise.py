@@ -1,5 +1,6 @@
 import argparse
 import re
+import time
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -65,6 +66,21 @@ def get_device(arg_device: Optional[str]) -> torch.device:
     if torch.cuda.is_available():
         return torch.device("cuda")
     return torch.device("cpu")
+
+
+def format_time(seconds: float) -> str:
+    """Format time in a human-readable way."""
+    if seconds < 60:
+        return f"{seconds:.2f}s"
+    elif seconds < 3600:
+        mins = int(seconds // 60)
+        secs = seconds % 60
+        return f"{mins}m {secs:.2f}s"
+    else:
+        hours = int(seconds // 3600)
+        mins = int((seconds % 3600) // 60)
+        secs = seconds % 60
+        return f"{hours}h {mins}m {secs:.2f}s"
 
 
 def find_images_for_base_name(
@@ -396,16 +412,15 @@ def load_existing_results(output_path: Path) -> List[Dict]:
         return []
     try:
         df = pd.read_csv(output_path)
+        return df.to_dict("records")
     except Exception as exc:  # pragma: no cover - defensive logging
         print(f"Could not read existing results at {output_path}: {exc}")
         return []
-    return df.to_dict("records")
 
 
 def write_results_csv(results: List[Dict], output_path: Path) -> None:
     """Write results to CSV, appending to existing file if it exists and deduplicating."""
     if not results:
-        print("No results to write.")
         return
 
     # Load existing results if file exists
@@ -441,10 +456,11 @@ def write_results_csv(results: List[Dict], output_path: Path) -> None:
     # Write combined results
     df = pd.DataFrame(combined_results)
     df.to_csv(output_path, index=False)
-    print(f"Wrote {len(combined_results)} total rows to {output_path} ({len(results)} new)")
+    print(f"Wrote {len(combined_results)} total rows ({len(results)} new) to {output_path}")
 
 
 def main() -> None:
+    start_time = time.time()
     args = parse_args()
     logos_dir = Path(__file__).parent
     generated_dir = logos_dir / "generated_images"
@@ -459,10 +475,11 @@ def main() -> None:
         raise FileNotFoundError(f"generated_images directory not found at {generated_dir}")
 
     device = get_device(args.device)
-    print(f"Processing base_name: {args.base_name}")
-    print(f"Using device: {device}")
+    print(f"Processing {args.base_name} on {device}")
 
     # Set up metrics
+    print("Loading models...", end=" ", flush=True)
+    setup_start = time.time()
     lpips_metric = None
     clip_model = clip_processor = None
     dino_model = dino_transform = None
@@ -470,18 +487,19 @@ def main() -> None:
     if not args.no_lpips:
         lpips_metric = setup_lpips(device)
         if lpips_metric is None:
-            print("LPIPS package not found; LPIPS metric will be skipped.")
+            print("(LPIPS unavailable)", end=" ", flush=True)
 
     if not args.no_clip:
         clip_model, clip_processor = setup_clip(device)
 
     if not args.no_dino:
         dino_model, dino_transform = setup_dino(device)
+    
+    setup_time = time.time() - setup_start
+    print(f"done in {format_time(setup_time)}")
 
     # Filter models if specified
     allowed_models = set(args.models) if args.models is not None else None
-    if allowed_models is not None:
-        print(f"Filtering to models: {sorted(allowed_models)}")
 
     # Find images for this base_name
     image_list = find_images_for_base_name(generated_dir, args.base_name)
@@ -493,50 +511,44 @@ def main() -> None:
                       if model_name is not None and model_name in allowed_models]
     
     if len(image_list) < 2:
-        print(f"Only {len(image_list)} image(s) found for {args.base_name}. Need at least 2 for pairwise comparison.")
+        print(f"Only {len(image_list)} image(s) found. Need at least 2 for pairwise comparison.")
         return
     
-    print(f"Found {len(image_list)} images for {args.base_name}")
+    print(f"Found {len(image_list)} images")
     
     # Calculate expected number of pairwise comparisons
     expected_pairs = len(image_list) * (len(image_list) - 1) // 2
     
     # Check if output file exists and contains all expected comparisons
-    if pairwise_output_path.exists():
-        print(f"Checking existing results file: {pairwise_output_path}")
-        existing_pairwise_records = load_existing_results(pairwise_output_path)
-        existing_pairwise_keys = {
-            make_result_key_pairwise(
-                record.get("base_name"),
-                record.get("model_name1"),
-                record.get("seed1"),
-                record.get("model_name2"),
-                record.get("seed2"),
-            )
-            for record in existing_pairwise_records
-            if record.get("base_name") == args.base_name  # Only count records for this base_name
-        }
-        
-        # Generate all expected pairwise keys from image_list
-        expected_keys = set()
-        for i in range(len(image_list)):
-            for j in range(i + 1, len(image_list)):
-                _, model_name1, seed1 = image_list[i]
-                _, model_name2, seed2 = image_list[j]
-                key = make_result_key_pairwise(args.base_name, model_name1, seed1, model_name2, seed2)
-                expected_keys.add(key)
-        
-        # Check if all expected keys are present
-        missing_keys = expected_keys - existing_pairwise_keys
-        if not missing_keys:
-            print(f"Output file already contains all {len(existing_pairwise_keys)} expected pairwise comparisons.")
-            print(f"All comparisons for {args.base_name} are complete. Exiting.")
-            return
-        else:
-            print(f"Output file contains {len(existing_pairwise_keys)} comparisons, missing {len(missing_keys)}. Continuing...")
-    
-    # Load existing results to skip already computed pairs
     existing_pairwise_records = load_existing_results(pairwise_output_path)
+    existing_pairwise_keys = {
+        make_result_key_pairwise(
+            record.get("base_name"),
+            record.get("model_name1"),
+            record.get("seed1"),
+            record.get("model_name2"),
+            record.get("seed2"),
+        )
+        for record in existing_pairwise_records
+        if record.get("base_name") == args.base_name
+    }
+    
+    # Generate all expected pairwise keys from image_list
+    expected_keys = set()
+    for i in range(len(image_list)):
+        for j in range(i + 1, len(image_list)):
+            _, model_name1, seed1 = image_list[i]
+            _, model_name2, seed2 = image_list[j]
+            key = make_result_key_pairwise(args.base_name, model_name1, seed1, model_name2, seed2)
+            expected_keys.add(key)
+    
+    # Check if all expected keys are present
+    missing_keys = expected_keys - existing_pairwise_keys
+    if not missing_keys:
+        print(f"All {len(existing_pairwise_keys)} comparisons already exist. Exiting.")
+        return
+    
+    # Load all existing keys (not just for this base_name) to skip during computation
     existing_pairwise_keys = {
         make_result_key_pairwise(
             record.get("base_name"),
@@ -548,9 +560,12 @@ def main() -> None:
         for record in existing_pairwise_records
         if record.get("base_name") is not None
     }
+    
+    print(f"Computing {len(missing_keys)}/{expected_pairs} comparisons ({100*len(missing_keys)/expected_pairs:.1f}% remaining)")
 
     # Step 1: Load all images and compute embeddings/features once per image
-    print(f"Loading images and computing embeddings...")
+    print(f"Computing embeddings for {len(image_list)} images...", end=" ", flush=True)
+    embedding_start_time = time.time()
     image_data: List[Tuple[Path, str, int, Image.Image, Optional[object], Optional[torch.Tensor], Optional[torch.Tensor]]] = []
     # Structure: (path, model_name, seed, pil_image, lpips_features, clip_embedding, dino_embedding)
     
@@ -569,7 +584,6 @@ def main() -> None:
         common_width = widths.most_common(1)[0][0]
         common_height = heights.most_common(1)[0][0]
         common_size = (common_width, common_height)
-        print(f"Using common size for LPIPS: {common_size}")
     else:
         common_size = None
         # Still need to load images if LPIPS is disabled
@@ -577,7 +591,7 @@ def main() -> None:
             if path not in loaded_images:
                 loaded_images[path] = load_pil_image(path)
     
-    for path, model_name, seed in image_list:
+    for idx, (path, model_name, seed) in enumerate(image_list, 1):
         img = loaded_images[path]
         
         # Compute LPIPS features (resize to common size if needed)
@@ -611,22 +625,38 @@ def main() -> None:
                 torch.cuda.empty_cache()
         
         image_data.append((path, model_name, seed, img, lpips_features, clip_emb, dino_emb))
+        
+        # Progress update every 20% or at the end
+        if idx % max(1, len(image_list) // 5) == 0 or idx == len(image_list):
+            elapsed = time.time() - embedding_start_time
+            rate = idx / elapsed if elapsed > 0 else 0
+            remaining = (len(image_list) - idx) / rate if rate > 0 else 0
+            print(f"{idx}/{len(image_list)} (ETA: {format_time(remaining)})", end="\r", flush=True)
+    
+    embedding_elapsed = time.time() - embedding_start_time
+    print(f"done in {format_time(embedding_elapsed)} ({format_time(embedding_elapsed / len(image_list))} per image)")
     
     # Step 2: Compute all pairwise similarities from precomputed embeddings
-    print(f"Computing pairwise similarities...")
+    total_pairs = len(image_data) * (len(image_data) - 1) // 2
+    print(f"Computing {len(missing_keys)} pairwise comparisons...", end=" ", flush=True)
+    pairwise_start_time = time.time()
     new_pairwise_results: List[Dict] = []
+    skipped_count = 0
+    computed_count = 0
+    pair_num = 0
     
     for i in range(len(image_data)):
         for j in range(i + 1, len(image_data)):
+            pair_num += 1
             path1, model_name1, seed1, img1, lpips_feat1, clip_emb1, dino_emb1 = image_data[i]
             path2, model_name2, seed2, img2, lpips_feat2, clip_emb2, dino_emb2 = image_data[j]
             
             key = make_result_key_pairwise(args.base_name, model_name1, seed1, model_name2, seed2)
             if key in existing_pairwise_keys:
-                print(f"  Pair ({model_name1}:{seed1}, {model_name2}:{seed2}): already computed, skipping")
+                skipped_count += 1
                 continue
             
-            print(f"  Pair ({model_name1}:{seed1}, {model_name2}:{seed2}): {path1.name} vs {path2.name}")
+            computed_count += 1
             
             # LPIPS (lower is better - lower values indicate greater similarity)
             lpips_val = None
@@ -662,14 +692,26 @@ def main() -> None:
                 "clip_cosine": clip_cosine,
                 "dino_cosine": dino_cosine,
             })
+            
+            # Progress update every 10% or at the end
+            if computed_count % max(1, len(missing_keys) // 10) == 0 or computed_count == len(missing_keys):
+                elapsed = time.time() - pairwise_start_time
+                rate = computed_count / elapsed if elapsed > 0 else 0
+                remaining = (len(missing_keys) - computed_count) / rate if rate > 0 else 0
+                print(f"{computed_count}/{len(missing_keys)} (ETA: {format_time(remaining)})", end="\r", flush=True)
+    
+    pairwise_elapsed = time.time() - pairwise_start_time
+    print(f"done in {format_time(pairwise_elapsed)}", end="")
+    if computed_count > 0:
+        print(f" ({format_time(pairwise_elapsed / computed_count)} per comparison)")
+    else:
+        print()
     
     # Write results to CSV
     write_results_csv(new_pairwise_results, pairwise_output_path)
     
-    print(f"\nDone processing {args.base_name}:")
-    print(f"  Images processed: {len(image_list)}")
-    print(f"  New pairwise comparisons: {len(new_pairwise_results)}")
-    print(f"  Output CSV: {pairwise_output_path}")
+    total_time = time.time() - start_time
+    print(f"Total time: {format_time(total_time)}")
 
 
 if __name__ == "__main__":
