@@ -204,7 +204,7 @@ def compute_lpips_features(
     Extract LPIPS features from a single image tensor.
     
     Returns the feature (which may be a list/tuple of tensors from multiple layers)
-    that can be used to compute distances.
+    that can be used to compute distances. Features are moved to CPU to save GPU memory.
     """
     if metric is None:
         return None
@@ -215,6 +215,11 @@ def compute_lpips_features(
         # LPIPS computes features at multiple layers and then computes weighted distance
         # The network returns features from multiple layers (list or tuple of tensors)
         feat = metric.net(img_in)
+        # Move features to CPU to save GPU memory
+        if isinstance(feat, (list, tuple)):
+            feat = [f.cpu() for f in feat]
+        else:
+            feat = feat.cpu()
     return feat
 
 
@@ -222,6 +227,7 @@ def compute_lpips_from_features(
     metric,
     feat1: object,
     feat2: object,
+    device: torch.device,
 ) -> Optional[float]:
     """
     Compute LPIPS distance from precomputed features.
@@ -231,6 +237,7 @@ def compute_lpips_from_features(
     - Higher values indicate more perceptual difference
     
     Features may be a list/tuple of tensors from multiple network layers.
+    Features are moved to device for computation, then moved back to CPU.
     """
     if metric is None or feat1 is None or feat2 is None:
         return None
@@ -244,6 +251,9 @@ def compute_lpips_from_features(
             # LPIPS uses spatial average pooling and then applies linear layers
             dists = []
             for i, (f1, f2) in enumerate(zip(feat1, feat2)):
+                # Move to device for computation
+                f1 = f1.to(device)
+                f2 = f2.to(device)
                 # Normalize features (LPIPS does this internally)
                 f1_norm = f1 / (torch.norm(f1, dim=1, keepdim=True) + 1e-10)
                 f2_norm = f2 / (torch.norm(f2, dim=1, keepdim=True) + 1e-10)
@@ -253,16 +263,22 @@ def compute_lpips_from_features(
                 diff_pooled = torch.mean(diff, dim=(2, 3), keepdim=True)
                 # Apply linear layer (lin0, lin1, etc.)
                 lin_layer = getattr(metric, f'lin{i}')
-                dists.append(lin_layer(diff_pooled))
+                dist = lin_layer(diff_pooled)
+                dists.append(dist)
+                # Clear GPU memory
+                del f1, f2, f1_norm, f2_norm, diff, diff_pooled
             # Sum across layers
             d = sum(dists)
         else:
             # Single tensor - shouldn't happen with standard LPIPS, but handle it
+            feat1 = feat1.to(device)
+            feat2 = feat2.to(device)
             f1_norm = feat1 / (torch.norm(feat1, dim=1, keepdim=True) + 1e-10)
             f2_norm = feat2 / (torch.norm(feat2, dim=1, keepdim=True) + 1e-10)
             diff = (f1_norm - f2_norm) ** 2
             diff_pooled = torch.mean(diff, dim=(2, 3), keepdim=True)
             d = metric.lin0(diff_pooled)
+            del feat1, feat2, f1_norm, f2_norm, diff, diff_pooled
     return float(d.item())
 
 
@@ -305,7 +321,7 @@ def compute_clip_embedding(
     device: torch.device,
     img: Image.Image,
 ) -> torch.Tensor:
-    """Compute CLIP embedding for a single image."""
+    """Compute CLIP embedding for a single image. Returns CPU tensor to save GPU memory."""
     import torch.nn.functional as F
     
     inputs = processor(
@@ -315,14 +331,16 @@ def compute_clip_embedding(
     with torch.no_grad():
         feat = model.get_image_features(**inputs)
     feat = F.normalize(feat, dim=-1)
-    return feat.squeeze(0)  # Remove batch dimension
+    feat = feat.squeeze(0)  # Remove batch dimension
+    return feat.cpu()  # Move to CPU to save GPU memory
 
 
 def compute_clip_cosine_from_embeddings(
     emb1: torch.Tensor,
     emb2: torch.Tensor,
 ) -> float:
-    """Compute cosine similarity between two CLIP embeddings."""
+    """Compute cosine similarity between two CLIP embeddings. Works with CPU tensors."""
+    # Embeddings are on CPU, computation can be done there
     sim = torch.sum(emb1 * emb2).item()
     return float(sim)
 
@@ -368,21 +386,23 @@ def compute_dino_embedding(
     device: torch.device,
     img: Image.Image,
 ) -> torch.Tensor:
-    """Compute DINO embedding for a single image."""
+    """Compute DINO embedding for a single image. Returns CPU tensor to save GPU memory."""
     import torch.nn.functional as F
     
     img_tensor = transform(img).unsqueeze(0).to(device)
     with torch.no_grad():
         feat = model(img_tensor)
     feat = F.normalize(feat, dim=-1)
-    return feat.squeeze(0)  # Remove batch dimension
+    feat = feat.squeeze(0)  # Remove batch dimension
+    return feat.cpu()  # Move to CPU to save GPU memory
 
 
 def compute_dino_cosine_from_embeddings(
     emb1: torch.Tensor,
     emb2: torch.Tensor,
 ) -> float:
-    """Compute cosine similarity between two DINO embeddings."""
+    """Compute cosine similarity between two DINO embeddings. Works with CPU tensors."""
+    # Embeddings are on CPU, computation can be done there
     sim = torch.sum(emb1 * emb2).item()
     return float(sim)
 
@@ -670,8 +690,8 @@ def main() -> None:
         
         # Step 1: Load all images and compute embeddings/features once per image
         print(f"  Loading images and computing embeddings...")
-        image_data: List[Tuple[Path, str, int, Image.Image, Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]] = []
-        # Structure: (path, model_name, seed, pil_image, lpips_tensor, lpips_features, clip_embedding, dino_embedding)
+        image_data: List[Tuple[Path, str, int, Image.Image, Optional[object], Optional[torch.Tensor], Optional[torch.Tensor]]] = []
+        # Structure: (path, model_name, seed, pil_image, lpips_features, clip_embedding, dino_embedding)
         
         # Determine common size for LPIPS (use median size to minimize resizing)
         if lpips_metric is not None and image_list:
@@ -692,8 +712,7 @@ def main() -> None:
         for path, model_name, seed in image_list:
             img = load_pil_image(path)
             
-            # Compute LPIPS tensor and features (resize to common size if needed)
-            lpips_tensor = None
+            # Compute LPIPS features (resize to common size if needed)
             lpips_features = None
             if lpips_metric is not None:
                 if common_size and img.size != common_size:
@@ -702,25 +721,35 @@ def main() -> None:
                     img_resized = img
                 lpips_tensor = to_tensor(img_resized, device)
                 lpips_features = compute_lpips_features(lpips_metric, lpips_tensor)
+                # Clear GPU memory after extracting features
+                del lpips_tensor
+                if device.type == 'cuda':
+                    torch.cuda.empty_cache()
             
             # Compute CLIP embedding
             clip_emb = None
             if clip_model is not None and clip_processor is not None:
                 clip_emb = compute_clip_embedding(clip_model, clip_processor, device, img)
+                # Clear GPU memory
+                if device.type == 'cuda':
+                    torch.cuda.empty_cache()
             
             # Compute DINO embedding
             dino_emb = None
             if dino_model is not None and dino_transform is not None:
                 dino_emb = compute_dino_embedding(dino_model, dino_transform, device, img)
+                # Clear GPU memory
+                if device.type == 'cuda':
+                    torch.cuda.empty_cache()
             
-            image_data.append((path, model_name, seed, img, lpips_tensor, lpips_features, clip_emb, dino_emb))
+            image_data.append((path, model_name, seed, img, lpips_features, clip_emb, dino_emb))
         
         # Step 2: Compute all pairwise similarities from precomputed embeddings
         print(f"  Computing pairwise similarities...")
         for i in range(len(image_data)):
             for j in range(i + 1, len(image_data)):
-                path1, model_name1, seed1, img1, tensor1, lpips_feat1, clip_emb1, dino_emb1 = image_data[i]
-                path2, model_name2, seed2, img2, tensor2, lpips_feat2, clip_emb2, dino_emb2 = image_data[j]
+                path1, model_name1, seed1, img1, lpips_feat1, clip_emb1, dino_emb1 = image_data[i]
+                path2, model_name2, seed2, img2, lpips_feat2, clip_emb2, dino_emb2 = image_data[j]
                 
                 key = make_result_key_pairwise(base_name, model_name1, seed1, model_name2, seed2)
                 if key in existing_pairwise_keys:
@@ -732,7 +761,7 @@ def main() -> None:
                 # LPIPS (lower is better - lower values indicate greater similarity)
                 lpips_val = None
                 if lpips_metric is not None and lpips_feat1 is not None and lpips_feat2 is not None:
-                    lpips_val = compute_lpips_from_features(lpips_metric, lpips_feat1, lpips_feat2)
+                    lpips_val = compute_lpips_from_features(lpips_metric, lpips_feat1, lpips_feat2, device)
                 
                 # CLIP cosine similarity
                 clip_cosine = None
