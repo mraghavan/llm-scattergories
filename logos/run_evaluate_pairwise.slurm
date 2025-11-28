@@ -13,10 +13,6 @@
 # Optional: HF token not strictly needed here unless models require auth
 export HF_TOKEN=$(cat ~/.HF_TOKEN)
 
-# Change to the logos directory (where this script is located)
-# This allows the script to be run from anywhere
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
 
 echo "Script directory: $SCRIPT_DIR"
 echo "Current working directory: $(pwd)"
