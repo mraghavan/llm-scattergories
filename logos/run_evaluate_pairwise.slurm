@@ -18,6 +18,19 @@ export HF_TOKEN=$(cat ~/.HF_TOKEN)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+echo "Script directory: $SCRIPT_DIR"
+echo "Current working directory: $(pwd)"
+echo "Checking for generated_images directory..."
+if [ ! -d "generated_images" ]; then
+    echo "ERROR: generated_images directory not found!"
+    echo "Looking in: $(pwd)"
+    ls -la . | head -10
+    exit 1
+fi
+
+echo "Found generated_images directory"
+echo "Looking for *_original.png files..."
+
 # Find all base names from original images
 # Pattern: {base_name}_original.png
 BASE_NAMES=()
@@ -27,9 +40,12 @@ for orig_file in generated_images/*_original.png; do
         # Extract base name: remove path, remove _original.png, remove extension
         base_name=$(basename "$orig_file" _original.png)
         BASE_NAMES+=("$base_name")
+        echo "  Found: $orig_file -> base_name: $base_name"
     fi
 done
 shopt -u nullglob  # Restore default glob behavior
+
+echo "Total base names found: ${#BASE_NAMES[@]}"
 
 # Sort base names for consistent ordering
 IFS=$'\n' BASE_NAMES=($(sort <<<"${BASE_NAMES[*]}"))
