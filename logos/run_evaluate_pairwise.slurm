@@ -13,13 +13,15 @@
 # Optional: HF token not strictly needed here unless models require auth
 export HF_TOKEN=$(cat ~/.HF_TOKEN)
 
-# Get the directory where this script is located
+# Change to the logos directory (where this script is located)
+# This allows the script to be run from anywhere
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # Find all base names from original images
 # Pattern: {base_name}_original.png
 BASE_NAMES=()
+shopt -s nullglob  # Make globs return empty if no matches
 for orig_file in generated_images/*_original.png; do
     if [ -f "$orig_file" ]; then
         # Extract base name: remove path, remove _original.png, remove extension
@@ -27,6 +29,7 @@ for orig_file in generated_images/*_original.png; do
         BASE_NAMES+=("$base_name")
     fi
 done
+shopt -u nullglob  # Restore default glob behavior
 
 # Sort base names for consistent ordering
 IFS=$'\n' BASE_NAMES=($(sort <<<"${BASE_NAMES[*]}"))
