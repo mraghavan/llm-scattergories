@@ -646,11 +646,6 @@ def main() -> None:
                 filtered_groups.append((base_name, filtered_list))
         groups = filtered_groups
     
-    # TESTING: Only process first base_name
-    if groups:
-        groups = [groups[0]]
-        print(f"\nTESTING MODE: Only processing first base_name: {groups[0][0]}")
-    
     total_pairs = sum(len(image_list) * (len(image_list) - 1) // 2 for _, image_list in groups)
     print(f"Found {len(groups)} base_name groups with at least 2 images.")
     print(f"Total pairwise comparisons to compute: {total_pairs}")
