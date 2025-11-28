@@ -1,6 +1,7 @@
 import argparse
 import re
 from pathlib import Path
+from collections import defaultdict
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
@@ -11,15 +12,22 @@ from PIL import Image
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Evaluate similarity between original logos (saved as *_original.png in generated_images/) "
-            "and generated images in generated_images/ using multiple visual metrics."
+            "Evaluate similarity between original logos and generated images, "
+            "and pairwise similarity between generated images from the same model. "
+            "Uses multiple visual metrics (LPIPS, CLIP, DINO)."
         )
     )
     parser.add_argument(
-        "--output-csv",
+        "--original-output-csv",
         type=str,
         default="image_similarity_results.csv",
-        help="Output CSV filename (will be written in the logos directory).",
+        help="Output CSV filename for original-to-generated comparisons (will be written in the logos directory).",
+    )
+    parser.add_argument(
+        "--pairwise-output-csv",
+        type=str,
+        default="pairwise_similarity_results.csv",
+        help="Output CSV filename for pairwise generated image comparisons (will be written in the logos directory).",
     )
     parser.add_argument(
         "--device",
@@ -79,6 +87,65 @@ def find_image_pairs(
             pairs.append((base_name, orig_path, gens))
     
     return pairs
+
+
+def find_image_groups_by_model(
+    generated_dir: Path,
+) -> List[Tuple[str, str, List[Tuple[Path, int]]]]:
+    """
+    Group generated images by base_name and model_name.
+    
+    Returns list of tuples: (base_name, model_name, list_of_(path, seed)_tuples)
+    """
+    # Find all generated images (excluding originals)
+    all_images = [p for p in generated_dir.glob("*.png") 
+                  if not p.name.endswith("_original.png")]
+    
+    # Group by (base_name, model_name)
+    groups: Dict[Tuple[str, str], List[Tuple[Path, int]]] = defaultdict(list)
+    
+    for img_path in all_images:
+        # Try to extract base_name by looking for patterns like {base}_{model}_{seed}.png
+        # We'll need to parse this more carefully
+        stem = img_path.stem
+        
+        # Try to find a base name by looking for common patterns
+        # First, let's try to find all possible base names from original images
+        original_images = list(generated_dir.glob("*_original.png"))
+        base_names = {orig.stem.replace("_original", "") for orig in original_images}
+        
+        # Try each base name to see if this image matches
+        matched = False
+        for base_name in base_names:
+            if stem.startswith(base_name + "_"):
+                model_name, seed = parse_model_and_seed(base_name, img_path.name)
+                if model_name is not None and seed is not None:
+                    groups[(base_name, model_name)].append((img_path, seed))
+                    matched = True
+                    break
+        
+        # If no match found, try to infer base_name from the filename
+        # Pattern: {base}_{model}_{seed}.png
+        if not matched:
+            # Try to split by last two underscores
+            parts = stem.rsplit("_", 2)
+            if len(parts) == 3:
+                base_name, model_name, seed_str = parts
+                try:
+                    seed = int(seed_str)
+                    groups[(base_name, model_name)].append((img_path, seed))
+                except ValueError:
+                    pass
+    
+    # Convert to list and sort
+    result = []
+    for (base_name, model_name), image_list in groups.items():
+        if len(image_list) > 1:  # Only include groups with at least 2 images for pairwise comparison
+            image_list.sort(key=lambda x: x[1])  # Sort by seed
+            result.append((base_name, model_name, image_list))
+    
+    result.sort(key=lambda x: (x[0], x[1]))  # Sort by base_name, then model_name
+    return result
 
 
 def load_pil_image(path: Path) -> Image.Image:
@@ -271,16 +338,34 @@ def normalize_optional_int(value: Optional[object]) -> Optional[int]:
             return None
 
 
-def make_result_key(
+def make_result_key_original(
     base_name: str,
     model_name: Optional[object],
     seed: Optional[object],
 ) -> Tuple[str, Optional[str], Optional[int]]:
-    """Create a comparable key for identifying an image pair result."""
+    """Create a comparable key for identifying an original-to-generated comparison."""
     base = str(base_name).strip()
     model = normalize_optional_str(model_name)
     normalized_seed = normalize_optional_int(seed)
     return base, model, normalized_seed
+
+
+def make_result_key_pairwise(
+    base_name: str,
+    model_name: Optional[object],
+    seed1: Optional[object],
+    seed2: Optional[object],
+) -> Tuple[str, Optional[str], Optional[int], Optional[int]]:
+    """Create a comparable key for identifying a pairwise generated image comparison."""
+    base = str(base_name).strip()
+    model = normalize_optional_str(model_name)
+    # Normalize seeds and ensure seed1 <= seed2 for consistent ordering
+    norm_seed1 = normalize_optional_int(seed1)
+    norm_seed2 = normalize_optional_int(seed2)
+    if norm_seed1 is not None and norm_seed2 is not None:
+        if norm_seed1 > norm_seed2:
+            norm_seed1, norm_seed2 = norm_seed2, norm_seed1
+    return base, model, norm_seed1, norm_seed2
 
 
 def load_existing_results(output_path: Path) -> List[Dict]:
@@ -308,16 +393,14 @@ def main() -> None:
     args = parse_args()
     logos_dir = Path(__file__).parent
     generated_dir = logos_dir / "generated_images"
-    output_path = logos_dir / args.output_csv
+    original_output_path = logos_dir / args.original_output_csv
+    pairwise_output_path = logos_dir / args.pairwise_output_csv
 
     if not generated_dir.exists():
         raise FileNotFoundError(f"generated_images directory not found at {generated_dir}")
 
     device = get_device(args.device)
     print(f"Using device: {device}")
-
-    pairs = find_image_pairs(generated_dir)
-    print(f"Found {len(pairs)} original logo(s) with at least one generated image.")
 
     # Set up metrics
     lpips_metric = None
@@ -335,18 +418,26 @@ def main() -> None:
     if not args.no_dino:
         dino_model, dino_transform = setup_dino(device)
 
-    existing_records = load_existing_results(output_path)
-    existing_keys = {
-        make_result_key(
+    # ===== Original to Generated Comparisons =====
+    print("\n" + "="*60)
+    print("Computing original-to-generated comparisons")
+    print("="*60)
+    
+    pairs = find_image_pairs(generated_dir)
+    print(f"Found {len(pairs)} original logo(s) with at least one generated image.")
+
+    existing_original_records = load_existing_results(original_output_path)
+    existing_original_keys = {
+        make_result_key_original(
             record.get("base_name"),
             record.get("model_name"),
             record.get("seed"),
         )
-        for record in existing_records
+        for record in existing_original_records
         if record.get("base_name") is not None
     }
 
-    new_results: List[Dict] = []
+    new_original_results: List[Dict] = []
 
     for base_name, orig_path, gen_paths in pairs:
         print(f"\nOriginal: {orig_path.name}")
@@ -354,8 +445,8 @@ def main() -> None:
 
         for gen_path in gen_paths:
             model_name, seed = parse_model_and_seed(base_name, gen_path.name)
-            key = make_result_key(base_name, model_name, seed)
-            if key in existing_keys:
+            key = make_result_key_original(base_name, model_name, seed)
+            if key in existing_original_keys:
                 print(f"  Generated: {gen_path.name} (already computed, skipping)")
                 continue
 
@@ -389,7 +480,7 @@ def main() -> None:
                 else None
             )
 
-            new_results.append({
+            new_original_results.append({
                 "base_name": base_name,
                 "model_name": model_name,
                 "seed": seed,
@@ -398,17 +489,109 @@ def main() -> None:
                 "dino_cosine": dino_cosine,
             })
 
-    combined_results = existing_records + new_results
-    write_results_csv(combined_results, output_path)
+    combined_original_results = existing_original_records + new_original_results
+    write_results_csv(combined_original_results, original_output_path)
 
-    print("\nDone. Summary:")
+    # ===== Pairwise Generated Image Comparisons =====
+    print("\n" + "="*60)
+    print("Computing pairwise generated image comparisons")
+    print("="*60)
+    
+    groups = find_image_groups_by_model(generated_dir)
+    total_pairs = sum(len(image_list) * (len(image_list) - 1) // 2 for _, _, image_list in groups)
+    print(f"Found {len(groups)} (base_name, model_name) groups with at least 2 images.")
+    print(f"Total pairwise comparisons to compute: {total_pairs}")
+
+    existing_pairwise_records = load_existing_results(pairwise_output_path)
+    existing_pairwise_keys = {
+        make_result_key_pairwise(
+            record.get("base_name"),
+            record.get("model_name"),
+            record.get("seed1"),
+            record.get("seed2"),
+        )
+        for record in existing_pairwise_records
+        if record.get("base_name") is not None
+    }
+
+    new_pairwise_results: List[Dict] = []
+
+    for base_name, model_name, image_list in groups:
+        print(f"\n{base_name} - {model_name}: {len(image_list)} images")
+        
+        # Compute all pairwise similarities
+        for i in range(len(image_list)):
+            for j in range(i + 1, len(image_list)):
+                path1, seed1 = image_list[i]
+                path2, seed2 = image_list[j]
+                
+                key = make_result_key_pairwise(base_name, model_name, seed1, seed2)
+                if key in existing_pairwise_keys:
+                    print(f"  Pair ({seed1}, {seed2}): already computed, skipping")
+                    continue
+                
+                print(f"  Pair ({seed1}, {seed2}): {path1.name} vs {path2.name}")
+                
+                img1 = load_pil_image(path1)
+                img2 = load_pil_image(path2)
+                
+                # Resize img2 to match img1 for LPIPS
+                if img2.size != img1.size:
+                    img2_resized = resize_to_match(img2, img1.size)
+                else:
+                    img2_resized = img2
+                
+                # Prepare tensors for LPIPS
+                tensor1 = to_tensor(img1, device)
+                tensor2 = to_tensor(img2_resized, device)
+                
+                # LPIPS (lower is better - lower values indicate greater similarity)
+                lpips_val = compute_lpips(lpips_metric, tensor1, tensor2) if lpips_metric is not None else None
+                
+                # CLIP cosine similarity
+                clip_cosine = (
+                    compute_clip_cosine(clip_model, clip_processor, device, img1, img2)
+                    if clip_model is not None and clip_processor is not None
+                    else None
+                )
+                
+                # DINO cosine similarity
+                dino_cosine = (
+                    compute_dino_cosine(dino_model, dino_transform, device, img1, img2)
+                    if dino_model is not None and dino_transform is not None
+                    else None
+                )
+                
+                new_pairwise_results.append({
+                    "base_name": base_name,
+                    "model_name": model_name,
+                    "seed1": seed1,
+                    "seed2": seed2,
+                    "lpips": lpips_val,
+                    "clip_cosine": clip_cosine,
+                    "dino_cosine": dino_cosine,
+                })
+
+    combined_pairwise_results = existing_pairwise_records + new_pairwise_results
+    write_results_csv(combined_pairwise_results, pairwise_output_path)
+
+    print("\n" + "="*60)
+    print("Done. Summary:")
+    print("="*60)
+    print(f"Original-to-generated comparisons:")
     print(f"  Originals with generated sets: {len(pairs)}")
-    print(f"  Newly computed comparisons: {len(new_results)}")
-    print(f"  Total comparisons written: {len(combined_results)}")
-    print(f"  Output CSV: {output_path}")
+    print(f"  Newly computed comparisons: {len(new_original_results)}")
+    print(f"  Total comparisons written: {len(combined_original_results)}")
+    print(f"  Output CSV: {original_output_path}")
+    print(f"\nPairwise generated image comparisons:")
+    print(f"  (base_name, model_name) groups: {len(groups)}")
+    print(f"  Newly computed pairwise comparisons: {len(new_pairwise_results)}")
+    print(f"  Total pairwise comparisons written: {len(combined_pairwise_results)}")
+    print(f"  Output CSV: {pairwise_output_path}")
 
 
 if __name__ == "__main__":
     main()
+
 
 
