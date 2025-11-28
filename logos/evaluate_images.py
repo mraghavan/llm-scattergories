@@ -1,7 +1,7 @@
 import argparse
 import re
+from collections import Counter, defaultdict
 from pathlib import Path
-from collections import defaultdict
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
@@ -96,24 +96,23 @@ def find_image_pairs(
     return pairs
 
 
-def find_image_groups_by_model(
+def find_image_groups_by_base_name(
     generated_dir: Path,
-) -> List[Tuple[str, str, List[Tuple[Path, int]]]]:
+) -> List[Tuple[str, List[Tuple[Path, str, int]]]]:
     """
-    Group generated images by base_name and model_name.
+    Group generated images by base_name only (across all models).
     
-    Returns list of tuples: (base_name, model_name, list_of_(path, seed)_tuples)
+    Returns list of tuples: (base_name, list_of_(path, model_name, seed)_tuples)
     """
     # Find all generated images (excluding originals)
     all_images = [p for p in generated_dir.glob("*.png") 
                   if not p.name.endswith("_original.png")]
     
-    # Group by (base_name, model_name)
-    groups: Dict[Tuple[str, str], List[Tuple[Path, int]]] = defaultdict(list)
+    # Group by base_name
+    groups: Dict[str, List[Tuple[Path, str, int]]] = defaultdict(list)
     
     for img_path in all_images:
         # Try to extract base_name by looking for patterns like {base}_{model}_{seed}.png
-        # We'll need to parse this more carefully
         stem = img_path.stem
         
         # Try to find a base name by looking for common patterns
@@ -127,7 +126,7 @@ def find_image_groups_by_model(
             if stem.startswith(base_name + "_"):
                 model_name, seed = parse_model_and_seed(base_name, img_path.name)
                 if model_name is not None and seed is not None:
-                    groups[(base_name, model_name)].append((img_path, seed))
+                    groups[base_name].append((img_path, model_name, seed))
                     matched = True
                     break
         
@@ -140,18 +139,19 @@ def find_image_groups_by_model(
                 base_name, model_name, seed_str = parts
                 try:
                     seed = int(seed_str)
-                    groups[(base_name, model_name)].append((img_path, seed))
+                    groups[base_name].append((img_path, model_name, seed))
                 except ValueError:
                     pass
     
     # Convert to list and sort
     result = []
-    for (base_name, model_name), image_list in groups.items():
+    for base_name, image_list in groups.items():
         if len(image_list) > 1:  # Only include groups with at least 2 images for pairwise comparison
-            image_list.sort(key=lambda x: x[1])  # Sort by seed
-            result.append((base_name, model_name, image_list))
+            # Sort by model_name, then seed for consistent ordering
+            image_list.sort(key=lambda x: (x[1], x[2]))
+            result.append((base_name, image_list))
     
-    result.sort(key=lambda x: (x[0], x[1]))  # Sort by base_name, then model_name
+    result.sort(key=lambda x: x[0])  # Sort by base_name
     return result
 
 
@@ -196,6 +196,76 @@ def setup_lpips(device: torch.device):
     return metric
 
 
+def compute_lpips_features(
+    metric,
+    img_tensor: torch.Tensor,
+) -> Optional[object]:
+    """
+    Extract LPIPS features from a single image tensor.
+    
+    Returns the feature (which may be a list/tuple of tensors from multiple layers)
+    that can be used to compute distances.
+    """
+    if metric is None:
+        return None
+    # LPIPS expects inputs in [-1, 1]
+    img_in = (img_tensor * 2.0) - 1.0
+    with torch.no_grad():
+        # Access the network directly to extract features
+        # LPIPS computes features at multiple layers and then computes weighted distance
+        # The network returns features from multiple layers (list or tuple of tensors)
+        feat = metric.net(img_in)
+    return feat
+
+
+def compute_lpips_from_features(
+    metric,
+    feat1: object,
+    feat2: object,
+) -> Optional[float]:
+    """
+    Compute LPIPS distance from precomputed features.
+    
+    LPIPS is a distance metric where lower values indicate greater similarity.
+    - Lower is better (0.0 = identical)
+    - Higher values indicate more perceptual difference
+    
+    Features may be a list/tuple of tensors from multiple network layers.
+    """
+    if metric is None or feat1 is None or feat2 is None:
+        return None
+    
+    with torch.no_grad():
+        # LPIPS computes differences at each layer, then applies learned weights
+        # The LPIPS metric has multiple linear layers (lin0, lin1, etc.) for each feature layer
+        # We need to compute the distance the same way LPIPS does internally
+        if isinstance(feat1, (list, tuple)) and isinstance(feat2, (list, tuple)):
+            # Multi-layer features: compute weighted differences at each layer
+            # LPIPS uses spatial average pooling and then applies linear layers
+            dists = []
+            for i, (f1, f2) in enumerate(zip(feat1, feat2)):
+                # Normalize features (LPIPS does this internally)
+                f1_norm = f1 / (torch.norm(f1, dim=1, keepdim=True) + 1e-10)
+                f2_norm = f2 / (torch.norm(f2, dim=1, keepdim=True) + 1e-10)
+                # Compute difference
+                diff = (f1_norm - f2_norm) ** 2
+                # Spatial average pooling
+                diff_pooled = torch.mean(diff, dim=(2, 3), keepdim=True)
+                # Apply linear layer (lin0, lin1, etc.)
+                lin_layer = getattr(metric, f'lin{i}')
+                dists.append(lin_layer(diff_pooled))
+            # Sum across layers
+            d = sum(dists)
+        else:
+            # Single tensor - shouldn't happen with standard LPIPS, but handle it
+            f1_norm = feat1 / (torch.norm(feat1, dim=1, keepdim=True) + 1e-10)
+            f2_norm = feat2 / (torch.norm(feat2, dim=1, keepdim=True) + 1e-10)
+            diff = (f1_norm - f2_norm) ** 2
+            diff_pooled = torch.mean(diff, dim=(2, 3), keepdim=True)
+            d = metric.lin0(diff_pooled)
+    return float(d.item())
+
+
 def compute_lpips(
     metric,
     orig: torch.Tensor,
@@ -229,6 +299,34 @@ def setup_clip(device: torch.device):
     return model, processor
 
 
+def compute_clip_embedding(
+    model,
+    processor,
+    device: torch.device,
+    img: Image.Image,
+) -> torch.Tensor:
+    """Compute CLIP embedding for a single image."""
+    import torch.nn.functional as F
+    
+    inputs = processor(
+        images=[img],
+        return_tensors="pt",
+    ).to(device)
+    with torch.no_grad():
+        feat = model.get_image_features(**inputs)
+    feat = F.normalize(feat, dim=-1)
+    return feat.squeeze(0)  # Remove batch dimension
+
+
+def compute_clip_cosine_from_embeddings(
+    emb1: torch.Tensor,
+    emb2: torch.Tensor,
+) -> float:
+    """Compute cosine similarity between two CLIP embeddings."""
+    sim = torch.sum(emb1 * emb2).item()
+    return float(sim)
+
+
 def compute_clip_cosine(
     model,
     processor,
@@ -236,17 +334,10 @@ def compute_clip_cosine(
     orig_img: Image.Image,
     gen_img: Image.Image,
 ) -> float:
-    import torch.nn.functional as F
-
-    inputs = processor(
-        images=[orig_img, gen_img],
-        return_tensors="pt",
-    ).to(device)
-    with torch.no_grad():
-        feats = model.get_image_features(**inputs)
-    feats = F.normalize(feats, dim=-1)
-    sim = torch.sum(feats[0] * feats[1]).item()
-    return float(sim)
+    """Legacy function for backward compatibility."""
+    emb1 = compute_clip_embedding(model, processor, device, orig_img)
+    emb2 = compute_clip_embedding(model, processor, device, gen_img)
+    return compute_clip_cosine_from_embeddings(emb1, emb2)
 
 
 def setup_dino(device: torch.device):
@@ -271,6 +362,31 @@ def setup_dino(device: torch.device):
     return model, transform
 
 
+def compute_dino_embedding(
+    model,
+    transform,
+    device: torch.device,
+    img: Image.Image,
+) -> torch.Tensor:
+    """Compute DINO embedding for a single image."""
+    import torch.nn.functional as F
+    
+    img_tensor = transform(img).unsqueeze(0).to(device)
+    with torch.no_grad():
+        feat = model(img_tensor)
+    feat = F.normalize(feat, dim=-1)
+    return feat.squeeze(0)  # Remove batch dimension
+
+
+def compute_dino_cosine_from_embeddings(
+    emb1: torch.Tensor,
+    emb2: torch.Tensor,
+) -> float:
+    """Compute cosine similarity between two DINO embeddings."""
+    sim = torch.sum(emb1 * emb2).item()
+    return float(sim)
+
+
 def compute_dino_cosine(
     model,
     transform,
@@ -278,17 +394,10 @@ def compute_dino_cosine(
     orig_img: Image.Image,
     gen_img: Image.Image,
 ) -> float:
-    import torch.nn.functional as F
-
-    o = transform(orig_img).unsqueeze(0).to(device)
-    g = transform(gen_img).unsqueeze(0).to(device)
-    with torch.no_grad():
-        o_feat = model(o)
-        g_feat = model(g)
-    o_feat = F.normalize(o_feat, dim=-1)
-    g_feat = F.normalize(g_feat, dim=-1)
-    sim = torch.sum(o_feat * g_feat).item()
-    return float(sim)
+    """Legacy function for backward compatibility."""
+    emb1 = compute_dino_embedding(model, transform, device, orig_img)
+    emb2 = compute_dino_embedding(model, transform, device, gen_img)
+    return compute_dino_cosine_from_embeddings(emb1, emb2)
 
 
 def parse_model_and_seed(base: str, generated_name: str) -> Tuple[Optional[str], Optional[int]]:
@@ -359,20 +468,28 @@ def make_result_key_original(
 
 def make_result_key_pairwise(
     base_name: str,
-    model_name: Optional[object],
+    model_name1: Optional[object],
     seed1: Optional[object],
+    model_name2: Optional[object],
     seed2: Optional[object],
-) -> Tuple[str, Optional[str], Optional[int], Optional[int]]:
+) -> Tuple[str, Optional[str], Optional[int], Optional[str], Optional[int]]:
     """Create a comparable key for identifying a pairwise generated image comparison."""
     base = str(base_name).strip()
-    model = normalize_optional_str(model_name)
-    # Normalize seeds and ensure seed1 <= seed2 for consistent ordering
+    model1 = normalize_optional_str(model_name1)
+    model2 = normalize_optional_str(model_name2)
     norm_seed1 = normalize_optional_int(seed1)
     norm_seed2 = normalize_optional_int(seed2)
-    if norm_seed1 is not None and norm_seed2 is not None:
-        if norm_seed1 > norm_seed2:
+    
+    # Ensure consistent ordering: model1 <= model2, and if equal, seed1 <= seed2
+    if model1 is not None and model2 is not None:
+        if model1 > model2:
+            model1, model2 = model2, model1
             norm_seed1, norm_seed2 = norm_seed2, norm_seed1
-    return base, model, norm_seed1, norm_seed2
+        elif model1 == model2 and norm_seed1 is not None and norm_seed2 is not None:
+            if norm_seed1 > norm_seed2:
+                norm_seed1, norm_seed2 = norm_seed2, norm_seed1
+    
+    return base, model1, norm_seed1, model2, norm_seed2
 
 
 def load_existing_results(output_path: Path) -> List[Dict]:
@@ -513,27 +630,38 @@ def main() -> None:
 
     # ===== Pairwise Generated Image Comparisons =====
     print("\n" + "="*60)
-    print("Computing pairwise generated image comparisons")
+    print("Computing pairwise generated image comparisons (across all models)")
     print("="*60)
     
-    groups = find_image_groups_by_model(generated_dir)
+    groups = find_image_groups_by_base_name(generated_dir)
     
-    # Filter groups by model if specified
+    # Filter images by model if specified
     if allowed_models is not None:
-        groups = [(base_name, model_name, image_list) 
-                  for base_name, model_name, image_list in groups 
-                  if model_name is not None and model_name in allowed_models]
+        filtered_groups = []
+        for base_name, image_list in groups:
+            filtered_list = [(path, model_name, seed) 
+                           for path, model_name, seed in image_list 
+                           if model_name is not None and model_name in allowed_models]
+            if len(filtered_list) > 1:  # Only include if at least 2 images remain
+                filtered_groups.append((base_name, filtered_list))
+        groups = filtered_groups
     
-    total_pairs = sum(len(image_list) * (len(image_list) - 1) // 2 for _, _, image_list in groups)
-    print(f"Found {len(groups)} (base_name, model_name) groups with at least 2 images.")
+    # TESTING: Only process first base_name
+    if groups:
+        groups = [groups[0]]
+        print(f"\nTESTING MODE: Only processing first base_name: {groups[0][0]}")
+    
+    total_pairs = sum(len(image_list) * (len(image_list) - 1) // 2 for _, image_list in groups)
+    print(f"Found {len(groups)} base_name groups with at least 2 images.")
     print(f"Total pairwise comparisons to compute: {total_pairs}")
 
     existing_pairwise_records = load_existing_results(pairwise_output_path)
     existing_pairwise_keys = {
         make_result_key_pairwise(
             record.get("base_name"),
-            record.get("model_name"),
+            record.get("model_name1"),
             record.get("seed1"),
+            record.get("model_name2"),
             record.get("seed2"),
         )
         for record in existing_pairwise_records
@@ -542,56 +670,99 @@ def main() -> None:
 
     new_pairwise_results: List[Dict] = []
 
-    for base_name, model_name, image_list in groups:
-        print(f"\n{base_name} - {model_name}: {len(image_list)} images")
+    for base_name, image_list in groups:
+        print(f"\n{base_name}: {len(image_list)} images")
         
-        # Compute all pairwise similarities
-        for i in range(len(image_list)):
-            for j in range(i + 1, len(image_list)):
-                path1, seed1 = image_list[i]
-                path2, seed2 = image_list[j]
+        # Step 1: Load all images and compute embeddings/features once per image
+        print(f"  Loading images and computing embeddings...")
+        image_data: List[Tuple[Path, str, int, Image.Image, Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]] = []
+        # Structure: (path, model_name, seed, pil_image, lpips_tensor, lpips_features, clip_embedding, dino_embedding)
+        
+        # Determine common size for LPIPS (use median size to minimize resizing)
+        if lpips_metric is not None and image_list:
+            sizes = []
+            for path, _, _ in image_list:
+                img = load_pil_image(path)
+                sizes.append(img.size)
+            # Find median size (most common width and height)
+            widths = Counter(s for s, _ in sizes)
+            heights = Counter(s for _, s in sizes)
+            common_width = widths.most_common(1)[0][0]
+            common_height = heights.most_common(1)[0][0]
+            common_size = (common_width, common_height)
+            print(f"  Using common size for LPIPS: {common_size}")
+        else:
+            common_size = None
+        
+        for path, model_name, seed in image_list:
+            img = load_pil_image(path)
+            
+            # Compute LPIPS tensor and features (resize to common size if needed)
+            lpips_tensor = None
+            lpips_features = None
+            if lpips_metric is not None:
+                if common_size and img.size != common_size:
+                    img_resized = resize_to_match(img, common_size)
+                else:
+                    img_resized = img
+                lpips_tensor = to_tensor(img_resized, device)
+                lpips_features = compute_lpips_features(lpips_metric, lpips_tensor)
+            
+            # Compute CLIP embedding
+            clip_emb = None
+            if clip_model is not None and clip_processor is not None:
+                clip_emb = compute_clip_embedding(clip_model, clip_processor, device, img)
+            
+            # Compute DINO embedding
+            dino_emb = None
+            if dino_model is not None and dino_transform is not None:
+                dino_emb = compute_dino_embedding(dino_model, dino_transform, device, img)
+            
+            image_data.append((path, model_name, seed, img, lpips_tensor, lpips_features, clip_emb, dino_emb))
+        
+        # Step 2: Compute all pairwise similarities from precomputed embeddings
+        print(f"  Computing pairwise similarities...")
+        for i in range(len(image_data)):
+            for j in range(i + 1, len(image_data)):
+                path1, model_name1, seed1, img1, tensor1, lpips_feat1, clip_emb1, dino_emb1 = image_data[i]
+                path2, model_name2, seed2, img2, tensor2, lpips_feat2, clip_emb2, dino_emb2 = image_data[j]
                 
-                key = make_result_key_pairwise(base_name, model_name, seed1, seed2)
+                key = make_result_key_pairwise(base_name, model_name1, seed1, model_name2, seed2)
                 if key in existing_pairwise_keys:
-                    print(f"  Pair ({seed1}, {seed2}): already computed, skipping")
+                    print(f"  Pair ({model_name1}:{seed1}, {model_name2}:{seed2}): already computed, skipping")
                     continue
                 
-                print(f"  Pair ({seed1}, {seed2}): {path1.name} vs {path2.name}")
-                
-                img1 = load_pil_image(path1)
-                img2 = load_pil_image(path2)
-                
-                # Resize img2 to match img1 for LPIPS
-                if img2.size != img1.size:
-                    img2_resized = resize_to_match(img2, img1.size)
-                else:
-                    img2_resized = img2
-                
-                # Prepare tensors for LPIPS
-                tensor1 = to_tensor(img1, device)
-                tensor2 = to_tensor(img2_resized, device)
+                print(f"  Pair ({model_name1}:{seed1}, {model_name2}:{seed2}): {path1.name} vs {path2.name}")
                 
                 # LPIPS (lower is better - lower values indicate greater similarity)
-                lpips_val = compute_lpips(lpips_metric, tensor1, tensor2) if lpips_metric is not None else None
+                lpips_val = None
+                if lpips_metric is not None and lpips_feat1 is not None and lpips_feat2 is not None:
+                    lpips_val = compute_lpips_from_features(lpips_metric, lpips_feat1, lpips_feat2)
                 
                 # CLIP cosine similarity
-                clip_cosine = (
-                    compute_clip_cosine(clip_model, clip_processor, device, img1, img2)
-                    if clip_model is not None and clip_processor is not None
-                    else None
-                )
+                clip_cosine = None
+                if clip_emb1 is not None and clip_emb2 is not None:
+                    clip_cosine = compute_clip_cosine_from_embeddings(clip_emb1, clip_emb2)
                 
                 # DINO cosine similarity
-                dino_cosine = (
-                    compute_dino_cosine(dino_model, dino_transform, device, img1, img2)
-                    if dino_model is not None and dino_transform is not None
-                    else None
-                )
+                dino_cosine = None
+                if dino_emb1 is not None and dino_emb2 is not None:
+                    dino_cosine = compute_dino_cosine_from_embeddings(dino_emb1, dino_emb2)
+                
+                # Ensure consistent ordering in output (model_name1 <= model_name2)
+                if model_name1 is not None and model_name2 is not None:
+                    if model_name1 > model_name2:
+                        model_name1, model_name2 = model_name2, model_name1
+                        seed1, seed2 = seed2, seed1
+                    elif model_name1 == model_name2 and seed1 is not None and seed2 is not None:
+                        if seed1 > seed2:
+                            seed1, seed2 = seed2, seed1
                 
                 new_pairwise_results.append({
                     "base_name": base_name,
-                    "model_name": model_name,
+                    "model_name1": model_name1,
                     "seed1": seed1,
+                    "model_name2": model_name2,
                     "seed2": seed2,
                     "lpips": lpips_val,
                     "clip_cosine": clip_cosine,
@@ -610,7 +781,7 @@ def main() -> None:
     print(f"  Total comparisons written: {len(combined_original_results)}")
     print(f"  Output CSV: {original_output_path}")
     print(f"\nPairwise generated image comparisons:")
-    print(f"  (base_name, model_name) groups: {len(groups)}")
+    print(f"  base_name groups: {len(groups)}")
     print(f"  Newly computed pairwise comparisons: {len(new_pairwise_results)}")
     print(f"  Total pairwise comparisons written: {len(combined_pairwise_results)}")
     print(f"  Output CSV: {pairwise_output_path}")
