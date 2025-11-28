@@ -694,10 +694,13 @@ def main() -> None:
         # Structure: (path, model_name, seed, pil_image, lpips_features, clip_embedding, dino_embedding)
         
         # Determine common size for LPIPS (use median size to minimize resizing)
+        # Also pre-load images to avoid loading twice
+        loaded_images: Dict[Path, Image.Image] = {}
         if lpips_metric is not None and image_list:
             sizes = []
             for path, _, _ in image_list:
                 img = load_pil_image(path)
+                loaded_images[path] = img
                 sizes.append(img.size)
             # Find median size (most common width and height)
             widths = Counter(s for s, _ in sizes)
@@ -708,9 +711,13 @@ def main() -> None:
             print(f"  Using common size for LPIPS: {common_size}")
         else:
             common_size = None
+            # Still need to load images if LPIPS is disabled
+            for path, _, _ in image_list:
+                if path not in loaded_images:
+                    loaded_images[path] = load_pil_image(path)
         
         for path, model_name, seed in image_list:
-            img = load_pil_image(path)
+            img = loaded_images[path]
             
             # Compute LPIPS features (resize to common size if needed)
             lpips_features = None
@@ -792,6 +799,11 @@ def main() -> None:
                     "clip_cosine": clip_cosine,
                     "dino_cosine": dino_cosine,
                 })
+        
+        # Clear memory after processing this base_name
+        del image_data, loaded_images
+        if device.type == 'cuda':
+            torch.cuda.empty_cache()
 
     combined_pairwise_results = existing_pairwise_records + new_pairwise_results
     write_results_csv(combined_pairwise_results, pairwise_output_path)
