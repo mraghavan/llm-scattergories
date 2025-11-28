@@ -8,7 +8,7 @@
 #SBATCH --mem=32G
 #SBATCH --gres=gpu:1
 #SBATCH --partition=cpu-gpu-rtx8000
-#SBATCH --array=0-999%20
+#SBATCH --array=0-24%3
 
 # Optional: HF token not strictly needed here unless models require auth
 export HF_TOKEN=$(cat ~/.HF_TOKEN)
