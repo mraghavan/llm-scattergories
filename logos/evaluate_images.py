@@ -50,6 +50,13 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable DINO metric.",
     )
+    parser.add_argument(
+        "--models",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Limit comparisons to only these model names (e.g., --models sd3 dalle3). If not specified, all models are included.",
+    )
     return parser.parse_args()
 
 
@@ -418,6 +425,11 @@ def main() -> None:
     if not args.no_dino:
         dino_model, dino_transform = setup_dino(device)
 
+    # Filter models if specified
+    allowed_models = set(args.models) if args.models is not None else None
+    if allowed_models is not None:
+        print(f"\nFiltering to models: {sorted(allowed_models)}")
+
     # ===== Original to Generated Comparisons =====
     print("\n" + "="*60)
     print("Computing original-to-generated comparisons")
@@ -445,6 +457,13 @@ def main() -> None:
 
         for gen_path in gen_paths:
             model_name, seed = parse_model_and_seed(base_name, gen_path.name)
+            
+            # Skip if model_name is None or if model filtering is enabled and this model is not in the allowed list
+            if model_name is None:
+                continue
+            if allowed_models is not None and model_name not in allowed_models:
+                continue
+            
             key = make_result_key_original(base_name, model_name, seed)
             if key in existing_original_keys:
                 print(f"  Generated: {gen_path.name} (already computed, skipping)")
@@ -498,6 +517,13 @@ def main() -> None:
     print("="*60)
     
     groups = find_image_groups_by_model(generated_dir)
+    
+    # Filter groups by model if specified
+    if allowed_models is not None:
+        groups = [(base_name, model_name, image_list) 
+                  for base_name, model_name, image_list in groups 
+                  if model_name is not None and model_name in allowed_models]
+    
     total_pairs = sum(len(image_list) * (len(image_list) - 1) // 2 for _, _, image_list in groups)
     print(f"Found {len(groups)} (base_name, model_name) groups with at least 2 images.")
     print(f"Total pairwise comparisons to compute: {total_pairs}")
