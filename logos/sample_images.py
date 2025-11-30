@@ -90,8 +90,6 @@ print(f"Loaded {len(dataset)} samples from dataset (split: {args.dataset_split})
 # Apply deterministic shuffle with seed 0
 print("Applying deterministic shuffle (seed=0)...")
 dataset = dataset.shuffle(seed=0)
-print(dataset.head(10))
-exit()
 
 # Limit number of samples
 dataset = dataset.select(range(min(args.max_samples, len(dataset))))
