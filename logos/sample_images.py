@@ -21,32 +21,25 @@ from PIL import Image
 def patch_attention_for_old_pytorch():
     """Patch torch.nn.functional.scaled_dot_product_attention to accept and ignore enable_gqa."""
     try:
-        import inspect
         import functools
         
-        # Check if scaled_dot_product_attention supports enable_gqa
-        sdp_signature = inspect.signature(torch.nn.functional.scaled_dot_product_attention)
-        supports_enable_gqa = 'enable_gqa' in sdp_signature.parameters
+        # Always patch it - it's safe to remove enable_gqa even if PyTorch supports it
+        original_sdp = torch.nn.functional.scaled_dot_product_attention
         
-        if not supports_enable_gqa:
-            # Patch scaled_dot_product_attention to accept and ignore enable_gqa
-            original_sdp = torch.nn.functional.scaled_dot_product_attention
-            
-            @functools.wraps(original_sdp)
-            def patched_sdp(*args, **kwargs):
-                # Remove enable_gqa from kwargs if present
-                kwargs.pop('enable_gqa', None)
-                # Call original function without enable_gqa
-                return original_sdp(*args, **kwargs)
-            
-            torch.nn.functional.scaled_dot_product_attention = patched_sdp
-            print("Applied compatibility patch: scaled_dot_product_attention now accepts enable_gqa (ignored)")
-        else:
-            print("PyTorch version supports enable_gqa, no patch needed")
+        @functools.wraps(original_sdp)
+        def patched_sdp(*args, **kwargs):
+            # Remove enable_gqa from kwargs if present (not supported in older PyTorch)
+            kwargs.pop('enable_gqa', None)
+            # Call original function without enable_gqa
+            return original_sdp(*args, **kwargs)
+        
+        torch.nn.functional.scaled_dot_product_attention = patched_sdp
+        print("Applied compatibility patch: scaled_dot_product_attention now accepts enable_gqa (ignored)")
     except Exception as e:
-        print(f"Warning: Could not apply attention compatibility patch: {e}")
+        print(f"ERROR: Could not apply attention compatibility patch: {e}")
         import traceback
         traceback.print_exc()
+        raise  # Re-raise to prevent continuing with broken state
 
 # Apply the patch before loading models
 patch_attention_for_old_pytorch()
