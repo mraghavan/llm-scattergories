@@ -17,36 +17,36 @@ from huggingface_hub import hf_hub_download
 from safetensors.torch import load_file
 from PIL import Image
 
-# Compatibility patch for PyTorch < 2.5: remove enable_gqa parameter if not supported
+# Compatibility patch for PyTorch < 2.5/2.8: make scaled_dot_product_attention accept enable_gqa
 def patch_attention_for_old_pytorch():
-    """Patch diffusers attention dispatch to remove enable_gqa if PyTorch doesn't support it."""
+    """Patch torch.nn.functional.scaled_dot_product_attention to accept and ignore enable_gqa."""
     try:
         import inspect
-        from diffusers.models import attention_dispatch
+        import functools
         
         # Check if scaled_dot_product_attention supports enable_gqa
         sdp_signature = inspect.signature(torch.nn.functional.scaled_dot_product_attention)
         supports_enable_gqa = 'enable_gqa' in sdp_signature.parameters
         
         if not supports_enable_gqa:
-            # Patch _native_attention to remove enable_gqa from kwargs
-            if hasattr(attention_dispatch, '_native_attention'):
-                original_native_attention = attention_dispatch._native_attention
-                
-                def patched_native_attention(**kwargs):
-                    # Remove enable_gqa if present (it's not supported in older PyTorch)
-                    kwargs.pop('enable_gqa', None)
-                    return original_native_attention(**kwargs)
-                
-                attention_dispatch._native_attention = patched_native_attention
-                print("Applied compatibility patch: removed enable_gqa parameter for older PyTorch version")
-            else:
-                print("Warning: Could not find _native_attention in attention_dispatch module")
-    except ImportError:
-        # diffusers.models.attention_dispatch might not exist in older versions
-        print("Note: attention_dispatch module not found, skipping compatibility patch")
+            # Patch scaled_dot_product_attention to accept and ignore enable_gqa
+            original_sdp = torch.nn.functional.scaled_dot_product_attention
+            
+            @functools.wraps(original_sdp)
+            def patched_sdp(*args, **kwargs):
+                # Remove enable_gqa from kwargs if present
+                kwargs.pop('enable_gqa', None)
+                # Call original function without enable_gqa
+                return original_sdp(*args, **kwargs)
+            
+            torch.nn.functional.scaled_dot_product_attention = patched_sdp
+            print("Applied compatibility patch: scaled_dot_product_attention now accepts enable_gqa (ignored)")
+        else:
+            print("PyTorch version supports enable_gqa, no patch needed")
     except Exception as e:
         print(f"Warning: Could not apply attention compatibility patch: {e}")
+        import traceback
+        traceback.print_exc()
 
 # Apply the patch before loading models
 patch_attention_for_old_pytorch()
