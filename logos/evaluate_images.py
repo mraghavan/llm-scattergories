@@ -12,7 +12,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Evaluate similarity between original logos and generated images. "
-            "Uses multiple visual metrics (LPIPS, CLIP, DINO)."
+            "Uses multiple visual metrics (LPIPS, CLIP, DINO, DreamSim)."
         )
     )
     parser.add_argument(
@@ -43,11 +43,23 @@ def parse_args() -> argparse.Namespace:
         help="Disable DINO metric.",
     )
     parser.add_argument(
+        "--no-dreamsim",
+        action="store_true",
+        help="Disable DreamSim metric.",
+    )
+    parser.add_argument(
         "--models",
         type=str,
         nargs="+",
         default=None,
         help="Limit comparisons to only these model names (e.g., --models sd3 dalle3). If not specified, all models are included.",
+    )
+    parser.add_argument(
+        "--icons",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Limit comparisons to only these icon base names (e.g., --icons ios_icon_0 ios_icon_1). If not specified, all icons are included.",
     )
     return parser.parse_args()
 
@@ -62,10 +74,15 @@ def get_device(arg_device: Optional[str]) -> torch.device:
 
 def find_image_pairs(
     generated_dir: Path,
+    allowed_icons: Optional[List[str]] = None,
 ) -> List[Tuple[str, Path, List[Path]]]:
     """
     For each original logo image saved in generated_images (as *_original.png),
     find all corresponding generated images.
+    
+    Args:
+        generated_dir: Directory containing generated images
+        allowed_icons: Optional list of icon base names to include (e.g., ["ios_icon_0"])
     
     Returns list of tuples: (base_name, original_image_path, list_of_generated_paths)
     """
@@ -74,9 +91,16 @@ def find_image_pairs(
     # Find all original images
     original_images = sorted(generated_dir.glob("*_original.png"))
     
+    # Convert allowed_icons to set for faster lookup
+    allowed_set = set(allowed_icons) if allowed_icons is not None else None
+    
     for orig_path in original_images:
         # Extract base name (e.g., "ios_icon_0" from "ios_icon_0_original.png")
         base_name = orig_path.stem.replace("_original", "")
+        
+        # Filter by icon name if specified
+        if allowed_set is not None and base_name not in allowed_set:
+            continue
         
         # Find all generated images for this base name (excluding the original)
         gens = sorted([p for p in generated_dir.glob(f"{base_name}_*.png") 
@@ -353,6 +377,128 @@ def compute_dino_cosine(
     return compute_dino_cosine_from_embeddings(emb1, emb2)
 
 
+def maybe_import_dreamsim():
+    try:
+        from dreamsim import dreamsim  # type: ignore
+    except Exception:
+        return None
+    return dreamsim
+
+
+def setup_dreamsim(device: torch.device):
+    """Set up DreamSim model and preprocess function."""
+    dreamsim_module = maybe_import_dreamsim()
+    if dreamsim_module is None:
+        return None, None
+    
+    try:
+        model, preprocess = dreamsim_module(pretrained=True, cache_dir="~/.cache")
+        model.to(device)
+        model.eval()
+        return model, preprocess
+    except Exception as exc:
+        print(f"Error setting up DreamSim: {exc}")
+        return None, None
+
+
+def compute_dreamsim_embedding(
+    model,
+    preprocess,
+    device: torch.device,
+    img: Image.Image,
+) -> Optional[torch.Tensor]:
+    """
+    Compute DreamSim embedding for a single image.
+    
+    Note: DreamSim's API may not directly support embedding extraction.
+    This function attempts to extract embeddings if possible, otherwise returns None.
+    Returns CPU tensor to save GPU memory.
+    """
+    if model is None or preprocess is None:
+        return None
+    
+    try:
+        # Preprocess image
+        img_tensor = preprocess(img).unsqueeze(0).to(device)
+        
+        with torch.no_grad():
+            # Try to extract embeddings from the model
+            # DreamSim models typically have a forward method that can return features
+            # This is model-specific and may need adjustment based on the actual DreamSim implementation
+            if hasattr(model, 'get_image_features'):
+                feat = model.get_image_features(img_tensor)
+            elif hasattr(model, 'encode_image'):
+                feat = model.encode_image(img_tensor)
+            else:
+                # If we can't extract embeddings directly, return None
+                # The direct similarity computation will be used instead
+                return None
+            
+            # Normalize if needed
+            import torch.nn.functional as F
+            if feat.dim() > 1:
+                feat = F.normalize(feat, dim=-1)
+            feat = feat.squeeze(0)  # Remove batch dimension
+            return feat.cpu()  # Move to CPU to save GPU memory
+    except Exception:
+        # If embedding extraction fails, return None and use direct computation
+        return None
+
+
+def compute_dreamsim_similarity_from_embeddings(
+    emb1: torch.Tensor,
+    emb2: torch.Tensor,
+) -> float:
+    """Compute cosine similarity between two DreamSim embeddings. Works with CPU tensors."""
+    # Embeddings are on CPU, computation can be done there
+    sim = torch.sum(emb1 * emb2).item()
+    return float(sim)
+
+
+def compute_dreamsim_similarity(
+    model,
+    preprocess,
+    device: torch.device,
+    orig_img: Image.Image,
+    gen_img: Image.Image,
+) -> Optional[float]:
+    """
+    Compute DreamSim similarity between two images.
+    
+    DreamSim is a similarity metric where higher values indicate greater similarity.
+    - Higher is better (1.0 = identical)
+    - Lower values indicate more perceptual difference
+    
+    Returns the similarity score (typically in [0, 1] range).
+    """
+    if model is None or preprocess is None:
+        return None
+    
+    try:
+        # Preprocess both images (preprocess returns tensors)
+        orig_tensor = preprocess(orig_img)
+        gen_tensor = preprocess(gen_img)
+        
+        # Move to device if not already there
+        if isinstance(orig_tensor, torch.Tensor):
+            orig_tensor = orig_tensor.to(device)
+        if isinstance(gen_tensor, torch.Tensor):
+            gen_tensor = gen_tensor.to(device)
+        
+        with torch.no_grad():
+            # DreamSim model computes similarity directly when given two images
+            similarity = model(orig_tensor, gen_tensor)
+            
+            # The output might be a tensor or a scalar
+            if isinstance(similarity, torch.Tensor):
+                similarity = similarity.item()
+            
+            return float(similarity)
+    except Exception as exc:
+        print(f"Error computing DreamSim similarity: {exc}")
+        return None
+
+
 def parse_model_and_seed(base: str, generated_name: str) -> Tuple[Optional[str], Optional[int]]:
     """
     Recover (model_name, seed) from a generated filename assuming the
@@ -456,6 +602,7 @@ def main() -> None:
     lpips_metric = None
     clip_model = clip_processor = None
     dino_model = dino_transform = None
+    dreamsim_model = dreamsim_preprocess = None
 
     if not args.no_lpips:
         lpips_metric = setup_lpips(device)
@@ -468,17 +615,26 @@ def main() -> None:
     if not args.no_dino:
         dino_model, dino_transform = setup_dino(device)
 
+    if not args.no_dreamsim:
+        dreamsim_model, dreamsim_preprocess = setup_dreamsim(device)
+        if dreamsim_model is None or dreamsim_preprocess is None:
+            print("DreamSim package not found or failed to load; DreamSim metric will be skipped.")
+
     # Filter models if specified
     allowed_models = set(args.models) if args.models is not None else None
     if allowed_models is not None:
         print(f"\nFiltering to models: {sorted(allowed_models)}")
+
+    # Filter icons if specified
+    if args.icons is not None:
+        print(f"\nFiltering to icons: {sorted(args.icons)}")
 
     # ===== Original to Generated Comparisons =====
     print("\n" + "="*60)
     print("Computing original-to-generated comparisons")
     print("="*60)
     
-    pairs = find_image_pairs(generated_dir)
+    pairs = find_image_pairs(generated_dir, allowed_icons=args.icons)
     print(f"Found {len(pairs)} original logo(s) with at least one generated image.")
 
     existing_original_records = load_existing_results(original_output_path)
@@ -542,6 +698,13 @@ def main() -> None:
                 else None
             )
 
+            # DreamSim similarity
+            dreamsim_similarity = (
+                compute_dreamsim_similarity(dreamsim_model, dreamsim_preprocess, device, orig_img, gen_img)
+                if dreamsim_model is not None and dreamsim_preprocess is not None
+                else None
+            )
+
             new_original_results.append({
                 "base_name": base_name,
                 "model_name": model_name,
@@ -549,6 +712,7 @@ def main() -> None:
                 "lpips": lpips_val,
                 "clip_cosine": clip_cosine,
                 "dino_cosine": dino_cosine,
+                "dreamsim": dreamsim_similarity,
             })
 
     combined_original_results = existing_original_records + new_original_results
