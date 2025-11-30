@@ -1,4 +1,5 @@
 import argparse
+import os
 import re
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -392,7 +393,9 @@ def setup_dreamsim(device: torch.device):
         return None, None
     
     try:
-        model, preprocess = dreamsim_module(pretrained=True, cache_dir="~/.cache")
+        # Expand ~ to actual home directory path
+        cache_dir = os.path.expanduser("~/.cache")
+        model, preprocess = dreamsim_module(pretrained=True, cache_dir=cache_dir)
         model.to(device)
         model.eval()
         return model, preprocess
