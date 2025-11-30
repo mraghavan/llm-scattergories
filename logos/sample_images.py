@@ -1,4 +1,5 @@
 import argparse
+import time
 import torch
 from pathlib import Path
 
@@ -89,6 +90,8 @@ print(f"Loaded {len(dataset)} samples from dataset (split: {args.dataset_split})
 # Apply deterministic shuffle with seed 0
 print("Applying deterministic shuffle (seed=0)...")
 dataset = dataset.shuffle(seed=0)
+print(dataset.head(10))
+exit()
 
 # Limit number of samples
 dataset = dataset.select(range(min(args.max_samples, len(dataset))))
@@ -254,6 +257,11 @@ for model_name in args.models:
     else:
         kwargs = {"guidance_scale": 0.0, "num_inference_steps": 2} if "turbo" in MODEL_ID or "schnell" in MODEL_ID else {}
     
+    # Timing tracking for this model
+    model_start_time = time.time()
+    total_generation_time = 0.0
+    images_generated = 0
+    
     for idx, sample in enumerate(dataset):
         # Get prompt from caption field
         prompt = sample["caption"].strip()
@@ -289,6 +297,9 @@ for model_name in args.models:
             device = "cuda" if torch.cuda.is_available() else "cpu"
             generator = torch.Generator(device=device).manual_seed(seed)
             
+            # Time the image generation
+            gen_start_time = time.time()
+            
             # Use 1024x1024 for all models for fair comparison
             # (SD1.5 defaults to 512x512, but we standardize to 1024x1024)
             # CogView4 requires explicit width/height (must be divisible by 32, between 512-2048)
@@ -300,8 +311,24 @@ for model_name in args.models:
                 **kwargs
             ).images[0]
             
+            gen_elapsed = time.time() - gen_start_time
+            total_generation_time += gen_elapsed
+            images_generated += 1
+            
             image.save(output_filename)
-            print(f"  Saved to {output_filename}")
+            print(f"  Saved to {output_filename} (took {gen_elapsed:.2f}s)")
+    
+    # Print timing statistics for this model
+    model_total_time = time.time() - model_start_time
+    if images_generated > 0:
+        avg_time_per_image = total_generation_time / images_generated
+        print(f"\n  Timing statistics for {model_name}:")
+        print(f"    Total images generated: {images_generated}")
+        print(f"    Total generation time: {total_generation_time:.2f}s")
+        print(f"    Average time per image: {avg_time_per_image:.2f}s")
+        print(f"    Total model time (including setup): {model_total_time:.2f}s")
+    else:
+        print(f"\n  No new images generated for {model_name} (all already existed)")
     
     # Clean up model to free GPU memory before loading next model
     del pipe
