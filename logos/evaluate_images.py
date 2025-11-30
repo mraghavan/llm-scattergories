@@ -466,13 +466,13 @@ def compute_dreamsim_similarity(
     gen_img: Image.Image,
 ) -> Optional[float]:
     """
-    Compute DreamSim similarity between two images.
+    Compute DreamSim distance between two images.
     
-    DreamSim is a similarity metric where higher values indicate greater similarity.
-    - Higher is better (1.0 = identical)
-    - Lower values indicate more perceptual difference
+    DreamSim is a distance metric where lower values indicate greater similarity.
+    - Lower is better (0.0 = identical)
+    - Higher values indicate more perceptual difference
     
-    Returns the similarity score (typically in [0, 1] range).
+    Returns the distance score (typically in [0, 1] range).
     """
     if model is None or preprocess is None:
         return None
