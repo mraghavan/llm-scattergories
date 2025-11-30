@@ -86,6 +86,18 @@ def parse_args():
         help="Maximum number of samples from dataset to process (default: 5)"
     )
     parser.add_argument(
+        "--start-index",
+        type=int,
+        default=None,
+        help="Start index for processing samples (for array jobs). If not set, processes all samples up to max-samples."
+    )
+    parser.add_argument(
+        "--end-index",
+        type=int,
+        default=None,
+        help="End index (exclusive) for processing samples (for array jobs). If not set, processes all samples up to max-samples."
+    )
+    parser.add_argument(
         "--enable-cpu-offload",
         action="store_true",
         help="Enable sequential CPU offload for memory efficiency (slower but uses less VRAM)"
@@ -119,8 +131,22 @@ print("Applying deterministic shuffle (seed=0)...")
 dataset = dataset.shuffle(seed=0)
 
 # Limit number of samples
-dataset = dataset.select(range(min(args.max_samples, len(dataset))))
-print(f"Processing {len(dataset)} samples (limited by --max-samples={args.max_samples})")
+max_samples = min(args.max_samples, len(dataset))
+dataset = dataset.select(range(max_samples))
+print(f"Dataset has {len(dataset)} samples (limited by --max-samples={args.max_samples})")
+
+# Determine which samples to process
+if args.start_index is not None or args.end_index is not None:
+    start_idx = args.start_index if args.start_index is not None else 0
+    end_idx = args.end_index if args.end_index is not None else len(dataset)
+    # Validate range
+    start_idx = max(0, min(start_idx, len(dataset)))
+    end_idx = max(start_idx, min(end_idx, len(dataset)))
+    sample_indices = list(range(start_idx, end_idx))
+    print(f"Processing samples {start_idx} to {end_idx-1} (indices {start_idx} to {end_idx-1}, {len(sample_indices)} samples)")
+else:
+    sample_indices = list(range(len(dataset)))
+    print(f"Processing all {len(dataset)} samples")
 
 # Verify dataset has required fields
 if "caption" not in dataset.column_names:
@@ -240,7 +266,7 @@ for model_name in args.models:
         try:
             device = "cuda" if torch.cuda.is_available() else "cpu"
             warmup_generator = torch.Generator(device=device).manual_seed(0)
-            warmup_kwargs = kwargs.copy()
+            # Define warmup kwargs (simplified for faster warmup)
             if model_name in {"sd3", "sd3.5"}:
                 warmup_kwargs = {"guidance_scale": 5.0, "num_inference_steps": 1}  # Faster warmup
             elif model_name in ["cogview4", "playground", "pixart-sigma"]:
@@ -287,14 +313,15 @@ for model_name in args.models:
     total_generation_time = 0.0
     images_generated = 0
     
-    for idx, sample in enumerate(dataset):
+    for idx in sample_indices:
+        sample = dataset[idx]
         # Get prompt from caption field
         prompt = sample["caption"].strip()
         
         # Create base name from dataset index
         base_name = f"ios_icon_{idx}"
         
-        print(f"\nProcessing sample {idx + 1}/{len(dataset)}: {base_name}")
+        print(f"\nProcessing sample {idx} (global index {idx}/{len(dataset)-1}): {base_name}")
         print(f"Prompt: {prompt[:100]}..." if len(prompt) > 100 else f"Prompt: {prompt}")
         
         # Save original image for evaluation
