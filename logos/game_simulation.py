@@ -3,8 +3,8 @@ Game simulation for model selection game.
 
 Players choose models, and we compute expected utility over:
 - Random selection of original icon (base_name)
-- Sampling similarities from each model (without replacement if multiple players use same model)
-- Winner is player with highest similarity (using dino_cosine)
+- Sampling distances from each model (without replacement if multiple players use same model)
+- Winner is player with lowest distance (using lpips)
 """
 
 import argparse
@@ -26,15 +26,15 @@ except ImportError:
         return iterable
 
 
-def load_similarity_data(csv_path: Path, similarity_metric: str = "dino_cosine") -> pd.DataFrame:
-    """Load similarity results CSV and return DataFrame."""
+def load_distance_data(csv_path: Path, distance_metric: str = "lpips") -> pd.DataFrame:
+    """Load distance results CSV and return DataFrame."""
     df = pd.read_csv(csv_path)
     
-    if similarity_metric not in df.columns:
-        raise ValueError(f"Similarity metric '{similarity_metric}' not found in CSV. Available: {df.columns.tolist()}")
+    if distance_metric not in df.columns:
+        raise ValueError(f"Distance metric '{distance_metric}' not found in CSV. Available: {df.columns.tolist()}")
     
-    # Filter out rows with missing similarity values
-    df = df.dropna(subset=[similarity_metric])
+    # Filter out rows with missing distance values
+    df = df.dropna(subset=[distance_metric])
     
     return df
 
@@ -57,23 +57,22 @@ def get_available_icons(df: pd.DataFrame) -> List[str]:
     return sorted(df["base_name"].unique().tolist())
 
 
-def compute_model_averages(df: pd.DataFrame, similarity_metric: str = "dino_cosine") -> Dict[str, float]:
+def compute_model_averages(df: pd.DataFrame, distance_metric: str = "lpips") -> Dict[str, float]:
     """
-    Compute average similarity/distance for each model across all icons and generated images.
+    Compute average distance for each model across all icons and generated images.
     
     Args:
-        df: DataFrame with similarity measurements
-        similarity_metric: Name of similarity metric (e.g., "dino_cosine", "lpips")
+        df: DataFrame with distance measurements
+        distance_metric: Name of distance metric (e.g., "lpips", "dreamsim")
     
     Returns:
-        Dictionary mapping model_name -> average similarity/distance
-        Note: For LPIPS, this is average distance (lower is better).
-              For cosine similarities, this is average similarity (higher is better).
+        Dictionary mapping model_name -> average distance
+        Note: For LPIPS and DreamSim, lower is better.
     """
     model_averages = {}
     
     for model in df["model_name"].unique():
-        model_data = df[df["model_name"] == model][similarity_metric].dropna()
+        model_data = df[df["model_name"] == model][distance_metric].dropna()
         if len(model_data) > 0:
             avg = model_data.mean()
             model_averages[model] = avg
@@ -81,64 +80,55 @@ def compute_model_averages(df: pd.DataFrame, similarity_metric: str = "dino_cosi
     return model_averages
 
 
-def get_best_single_shot_model(df: pd.DataFrame, similarity_metric: str = "dino_cosine") -> Tuple[Optional[str], Optional[float]]:
+def get_best_single_shot_model(df: pd.DataFrame, distance_metric: str = "lpips") -> Tuple[Optional[str], Optional[float]]:
     """
     Find the best model in the single-shot case.
     
-    For cosine similarities: best = highest average similarity
-    For LPIPS: best = lowest average distance (lower is better)
+    For distance metrics: best = lowest average distance (lower is better)
     
     Args:
-        df: DataFrame with similarity measurements
-        similarity_metric: Name of similarity metric
+        df: DataFrame with distance measurements
+        distance_metric: Name of distance metric
     
     Returns:
-        Tuple of (best_model_name, average_similarity/distance)
+        Tuple of (best_model_name, average_distance)
     """
-    model_averages = compute_model_averages(df, similarity_metric)
+    model_averages = compute_model_averages(df, distance_metric)
     if not model_averages:
         return None, None
     
-    lower_is_better = is_lower_better(similarity_metric)
-    
-    if lower_is_better:
-        # For LPIPS, lower is better (minimum distance)
-        best_model = min(model_averages.items(), key=lambda x: x[1])
-    else:
-        # For cosine similarities, higher is better (maximum similarity)
-        best_model = max(model_averages.items(), key=lambda x: x[1])
+    # For distance metrics, lower is better (minimum distance)
+    best_model = min(model_averages.items(), key=lambda x: x[1])
     
     return best_model
 
 
 def is_lower_better(metric: str) -> bool:
     """Check if lower values are better for this metric."""
-    # LPIPS and DreamSim are distance metrics (lower is better)
-    # Cosine similarities are similarity metrics (higher is better)
-    return metric == "lpips" or metric == "dreamsim"
+    # All distance metrics have lower is better
+    return True
 
 
-def group_by_icon_and_model(df: pd.DataFrame, similarity_metric: str = "dino_cosine") -> Dict[str, Dict[str, List[float]]]:
+def group_by_icon_and_model(df: pd.DataFrame, distance_metric: str = "lpips") -> Dict[str, Dict[str, List[float]]]:
     """
-    Group similarity scores by icon (base_name) and model.
+    Group distance scores by icon (base_name) and model.
     
-    Returns: {icon_name: {model_name: [similarity_scores]}}
+    Returns: {icon_name: {model_name: [distance_scores]}}
     """
     grouped: Dict[str, Dict[str, List[float]]] = defaultdict(lambda: defaultdict(list))
     
     for _, row in df.iterrows():
         icon = row["base_name"]
         model = row["model_name"]
-        similarity = row[similarity_metric]
-        grouped[icon][model].append(similarity)
+        distance = row[distance_metric]
+        grouped[icon][model].append(distance)
     
     # Convert defaultdicts to regular dicts and sort scores
-    # For LPIPS (lower is better), sort ascending. For cosine (higher is better), sort descending.
-    reverse = not is_lower_better(similarity_metric)
+    # For distance metrics (lower is better), sort ascending.
     result = {}
     for icon, models in grouped.items():
         result[icon] = {
-            model: sorted(scores, reverse=reverse)
+            model: sorted(scores)
             for model, scores in models.items()
         }
     
@@ -161,22 +151,22 @@ def nCr(n: int, r: int) -> float:
 def get_win_probabilities_efficient(
     grouped_data: Dict[str, Dict[str, List[float]]],
     player_models: List[str],
-    similarity_metric: str = "dino_cosine"
+    distance_metric: str = "lpips"
 ) -> Tuple[float, Dict[int, float]]:
     """
     Compute win probabilities efficiently without generating combinations.
     
     Args:
-        grouped_data: {icon_name: {model_name: [similarity_scores]}}
+        grouped_data: {icon_name: {model_name: [distance_scores]}}
         player_models: List of model names, one per player
-        similarity_metric: Name of similarity metric
+        distance_metric: Name of distance metric
     
     Returns:
         (overall_expected_utility, {player_index: expected_utility})
     """
     n_players = len(player_models)
     model_counts = Counter(player_models)
-    lower_is_better = is_lower_better(similarity_metric)
+    lower_is_better = is_lower_better(distance_metric)
     
     # Track total utility per player
     player_total_utility = np.zeros(n_players)
@@ -299,22 +289,22 @@ def get_win_probabilities_efficient(
 def get_expected_max_score(
     grouped_data: Dict[str, Dict[str, List[float]]],
     player_models: List[str],
-    similarity_metric: str = "dino_cosine"
+    distance_metric: str = "lpips"
 ) -> float:
     """
-    Compute the expected value of the maximum similarity score (the winning score).
+    Compute the expected value of the minimum distance score (the winning score).
     
     Args:
-        grouped_data: {icon_name: {model_name: [similarity_scores]}}
+        grouped_data: {icon_name: {model_name: [distance_scores]}}
         player_models: List of model names, one per player
-        similarity_metric: Name of similarity metric
+        distance_metric: Name of distance metric
     
     Returns:
-        Expected maximum score (averaged over icons)
+        Expected minimum score (averaged over icons)
     """
     n_players = len(player_models)
     model_counts = Counter(player_models)
-    lower_is_better = is_lower_better(similarity_metric)
+    lower_is_better = is_lower_better(distance_metric)
     
     total_expected_max = 0.0
     n_icons = len(grouped_data)
@@ -427,14 +417,14 @@ def get_expected_max_score(
 def compute_expected_utility(
     grouped_data: Dict[str, Dict[str, List[float]]],
     player_models: List[str],
-    similarity_metric: str = "dino_cosine"
+    distance_metric: str = "lpips"
 ) -> Tuple[float, Dict[int, float]]:
     """
     Compute expected utility for each player given their model choices.
     
     Uses efficient probability calculation.
     """
-    return get_win_probabilities_efficient(grouped_data, player_models, similarity_metric)
+    return get_win_probabilities_efficient(grouped_data, player_models, distance_metric)
 
 
 def canonicalize_profile(profile: Tuple[str, ...]) -> Tuple[str, ...]:
@@ -526,34 +516,28 @@ def compute_all_utilities(
     grouped_data: Dict[str, Dict[str, List[float]]],
     n_players: int,
     available_models: List[str],
-    similarity_metric: str = "dino_cosine"
+    distance_metric: str = "lpips"
 ) -> Dict[Tuple[str, ...], Dict[int, float]]:
     """
     Compute expected utility for all canonical model assignments.
     
     Args:
-        grouped_data: {icon_name: {model_name: [similarity_scores]}}
+        grouped_data: {icon_name: {model_name: [distance_scores]}}
         n_players: Number of players
         available_models: List of available model names
-        similarity_metric: Name of similarity metric
+        distance_metric: Name of distance metric
     
     Returns:
         Dictionary mapping canonical_profile -> {canonical_player_index: expected_utility}
         Utilities are indexed by position in the canonical (sorted) profile.
-        Note: Since we pass canonical assignments to compute_expected_utility, the returned
-        utilities are already indexed by canonical positions. Players using the same model
-        will have the same utility by symmetry.
     """
     all_assignments = generate_all_assignments(n_players, available_models)
     utilities = {}
     
     for canonical_assignment in tqdm(all_assignments, desc="Computing utilities", total=len(all_assignments)):
         _, player_utilities = compute_expected_utility(
-            grouped_data, list(canonical_assignment), similarity_metric
+            grouped_data, list(canonical_assignment), distance_metric
         )
-        # player_utilities is indexed by positions in canonical_assignment (which is already sorted)
-        # So utils[i] is the utility of the player at canonical position i
-        # By symmetry, players using the same model should have the same utility
         utilities[canonical_assignment] = player_utilities
     
     return utilities
@@ -659,11 +643,11 @@ def parse_args() -> argparse.Namespace:
         help="Input CSV filename (should be in the logos directory).",
     )
     parser.add_argument(
-        "--similarity-metric",
+        "--distance-metric",
         type=str,
-        default="dino_cosine",
-        choices=["dino_cosine", "clip_cosine", "lpips"],
-        help="Similarity metric to use for determining winners.",
+        default="lpips",
+        choices=["lpips", "dreamsim"],
+        help="Distance metric to use for determining winners.",
     )
     parser.add_argument(
         "--player-models",
@@ -715,8 +699,8 @@ def main() -> None:
         raise FileNotFoundError(f"Input CSV not found at {input_path}")
     
     # Load data
-    df = load_similarity_data(input_path, args.similarity_metric)
-    print(f"Loaded {len(df)} similarity measurements from {input_path}")
+    df = load_distance_data(input_path, args.distance_metric)
+    print(f"Loaded {len(df)} distance measurements from {input_path}")
     
     # List models/icons if requested
     if args.list_models:
@@ -736,7 +720,7 @@ def main() -> None:
         return
     
     # Group data by icon and model
-    grouped_data = group_by_icon_and_model(df, args.similarity_metric)
+    grouped_data = group_by_icon_and_model(df, args.distance_metric)
     print(f"Grouped data for {len(grouped_data)} icons")
     
     available_models = get_available_models(df)
@@ -751,10 +735,10 @@ def main() -> None:
         print(f"Available models: {available_models}")
         
         # Compute and print best single-shot model
-        best_model, best_avg = get_best_single_shot_model(df, args.similarity_metric)
+        best_model, best_avg = get_best_single_shot_model(df, args.distance_metric)
         if best_model:
-            print(f"\nBest single-shot model (average {args.similarity_metric}): {best_model} ({best_avg:.4f})")
-            model_averages = compute_model_averages(df, args.similarity_metric)
+            print(f"\nBest single-shot model (average {args.distance_metric}): {best_model} ({best_avg:.4f})")
+            model_averages = compute_model_averages(df, args.distance_metric)
             print(f"All model averages:")
             for model in sorted(model_averages.keys()):
                 avg = model_averages[model]
@@ -763,7 +747,7 @@ def main() -> None:
         
         # Compute utilities for all assignments
         all_utilities = compute_all_utilities(
-            grouped_data, n_players, available_models, args.similarity_metric
+            grouped_data, n_players, available_models, args.distance_metric
         )
         
         # Debug specific assignment if requested
@@ -884,10 +868,10 @@ def main() -> None:
     
     # Compute expected utility
     overall_expected, player_utilities = compute_expected_utility(
-        grouped_data, player_models, args.similarity_metric
+        grouped_data, player_models, args.distance_metric
     )
     
-    print(f"\nResults (using {args.similarity_metric}):")
+    print(f"\nResults (using {args.distance_metric}):")
     print(f"  Overall expected utility: {overall_expected:.4f}")
     print(f"  Per-player expected utility:")
     for i, utility in player_utilities.items():

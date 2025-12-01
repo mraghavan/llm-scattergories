@@ -8,7 +8,7 @@ import pandas as pd
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Analyze image similarity evaluation results and compute statistics "
+            "Analyze image distance evaluation results and compute statistics "
             "about which models perform best according to each metric."
         )
     )
@@ -35,7 +35,7 @@ def print_section(title: str) -> None:
 
 def get_available_metrics(df: pd.DataFrame) -> list[str]:
     """Get list of metrics that exist in the dataframe and have at least one non-null value."""
-    metrics = ["lpips", "clip_cosine", "dino_cosine", "dreamsim"]
+    metrics = ["lpips", "dreamsim"]
     return [m for m in metrics if m in df.columns and df[m].notna().any()]
 
 
@@ -82,13 +82,9 @@ def rank_models_by_metric(stats_df: pd.DataFrame, metric: str) -> pd.DataFrame:
     if len(metric_df) == 0:
         return pd.DataFrame()
 
-    # LPIPS and DreamSim are lower-is-better; cosine similarities are higher-is-better
-    if metric in ["lpips", "dreamsim"]:
-        metric_df = metric_df.sort_values(mean_col, ascending=True)
-        metric_df["rank"] = range(1, len(metric_df) + 1)
-    else:
-        metric_df = metric_df.sort_values(mean_col, ascending=False)
-        metric_df["rank"] = range(1, len(metric_df) + 1)
+    # All distance metrics are lower-is-better
+    metric_df = metric_df.sort_values(mean_col, ascending=True)
+    metric_df["rank"] = range(1, len(metric_df) + 1)
 
     return metric_df[["model_name", "rank", mean_col, f"{metric}_std", f"{metric}_count"]]
 
@@ -101,10 +97,7 @@ def print_model_rankings(stats_df: pd.DataFrame, available_metrics: list[str]) -
             continue
 
         print_section(f"Model Rankings by {metric.upper().replace('_', ' ')}")
-        if metric in ["lpips", "dreamsim"]:
-            print("(Lower is better)")
-        else:
-            print("(Higher is better)")
+        print("(Lower is better)")
 
         print(f"\n{'Rank':<6} {'Model':<20} {'Mean':<12} {'Std':<12} {'Count':<8}")
         print("-" * 60)
@@ -154,15 +147,10 @@ def print_per_base_statistics(df: pd.DataFrame) -> None:
         for metric in available_metrics:
             values = base_df[metric].dropna()
             if len(values) > 0:
-                best_model = None
-                if metric in ["lpips", "dreamsim"]:
-                    best_idx = values.idxmin()
-                    best_model = base_df.loc[best_idx, "model_name"]
-                    best_val = values.min()
-                else:
-                    best_idx = values.idxmax()
-                    best_model = base_df.loc[best_idx, "model_name"]
-                    best_val = values.max()
+                # All distance metrics: lower is better
+                best_idx = values.idxmin()
+                best_model = base_df.loc[best_idx, "model_name"]
+                best_val = values.min()
 
                 print(
                     f"  {metric}: mean={values.mean():.6f}, "

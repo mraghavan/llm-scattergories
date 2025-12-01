@@ -1,7 +1,7 @@
 """
-Plot expected pairwise similarity (diversity) for equilibrium and socially optimal strategies.
+Plot expected pairwise distance (diversity) for equilibrium and socially optimal strategies.
 
-For each similarity metric, computes the expected pairwise similarity between n players
+For each distance metric, computes the expected pairwise distance between n players
 given their strategy profiles (equilibrium or socially optimal), averaged across all icons.
 """
 
@@ -20,12 +20,12 @@ from scipy.special import comb
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Plot expected pairwise similarity (diversity)")
+    parser = argparse.ArgumentParser(description="Plot expected pairwise distance (diversity)")
     parser.add_argument(
         "--pairwise-csv",
         type=str,
         default="pairwise_similarity_results.csv",
-        help="Path to pairwise similarity results CSV (relative to logos directory)",
+        help="Path to pairwise distance results CSV (relative to logos directory)",
     )
     parser.add_argument(
         "--equilibria-dir",
@@ -43,8 +43,8 @@ def parse_args():
         "--metrics",
         type=str,
         nargs="+",
-        default=["dino_cosine", "clip_cosine", "lpips"],
-        help="Similarity metrics to plot",
+        default=["lpips", "dreamsim"],
+        help="Distance metrics to plot",
     )
     parser.add_argument(
         "--use-mock",
@@ -94,7 +94,7 @@ def compute_k_per_model_per_icon(df: pd.DataFrame) -> Dict[str, Dict[str, int]]:
     return k_dict
 
 
-def compute_expected_pairwise_similarity(
+def compute_expected_pairwise_distance(
     df: pd.DataFrame,
     assignment: List[str],
     metric: str,
@@ -102,17 +102,17 @@ def compute_expected_pairwise_similarity(
     debug: bool = False
 ) -> float:
     """
-    Compute expected pairwise similarity for a given strategy profile.
+    Compute expected pairwise distance for a given strategy profile.
     
     Args:
-        df: DataFrame with pairwise similarity data
+        df: DataFrame with pairwise distance data
         assignment: List of model names (one per player)
-        metric: Similarity metric name (e.g., "dino_cosine")
+        metric: Distance metric name (e.g., "lpips")
         k_dict: Dict mapping base_name -> model_name -> k (number of images)
         debug: If True, print debugging information
     
     Returns:
-        Average expected pairwise similarity across all icons
+        Average expected pairwise distance across all icons
     """
     n = len(assignment)
     model_counts = Counter(assignment)
@@ -131,7 +131,7 @@ def compute_expected_pairwise_similarity(
     if debug:
         print(f"    DEBUG: Icons with {metric} data: {len(icons)}")
     
-    total_similarity = 0.0
+    total_distance = 0.0
     valid_icons = 0
     
     for icon in icons:
@@ -159,8 +159,8 @@ def compute_expected_pairwise_similarity(
         if debug:
             print(f"    DEBUG:   Icon {icon} passed checks, computing similarity...")
         
-        # Compute expected pairwise similarity for this icon
-        icon_similarity = 0.0
+        # Compute expected pairwise distance for this icon
+        icon_distance = 0.0
         contributions = 0
         
         # Iterate over all pairs of models in the assignment
@@ -190,12 +190,10 @@ def compute_expected_pairwise_similarity(
                     
                     weight = comb(count1, 2, exact=True) / (comb(n, 2, exact=True) * comb(k1, 2, exact=True))
                     
-                    # Average similarity over all pairs
-                    # For LPIPS, use 1-score so higher values mean more similar
+                    # Average distance over all pairs
                     raw_avg = pairs_df[metric].mean()
-                    avg_sim = 1 - raw_avg if metric == "lpips" else raw_avg
-                    contribution = weight * avg_sim
-                    icon_similarity += contribution
+                    contribution = weight * raw_avg
+                    icon_distance += contribution
                     contributions += 1
                     
                     if debug:
@@ -220,33 +218,31 @@ def compute_expected_pairwise_similarity(
                     
                     weight = (comb(count1, 1, exact=True) * comb(count2, 1, exact=True)) / (comb(n, 2, exact=True) * k1 * k2)
                     
-                    # Average similarity over all pairs
-                    # For LPIPS, use 1-score so higher values mean more similar
+                    # Average distance over all pairs
                     raw_avg = pairs_df[metric].mean()
-                    avg_sim = 1 - raw_avg if metric == "lpips" else raw_avg
-                    contribution = weight * avg_sim
-                    icon_similarity += contribution
+                    contribution = weight * raw_avg
+                    icon_distance += contribution
                     contributions += 1
                     
                     if debug:
                         print(f"    DEBUG:     {model1} vs {model2}: {len(pairs_df)} pairs, avg={raw_avg:.6f}, weight={weight:.6f}, contribution={contribution:.6f}")
         
         if debug:
-            print(f"    DEBUG:   Icon {icon} similarity: {icon_similarity:.6f} (from {contributions} contributions)")
+            print(f"    DEBUG:   Icon {icon} distance: {icon_distance:.6f} (from {contributions} contributions)")
         
-        if icon_similarity > 0 or contributions > 0:
-            total_similarity += icon_similarity
+        if icon_distance > 0 or contributions > 0:
+            total_distance += icon_distance
             valid_icons += 1
     
     if debug:
-        print(f"    DEBUG: Total similarity: {total_similarity:.6f}, Valid icons: {valid_icons}")
+        print(f"    DEBUG: Total distance: {total_distance:.6f}, Valid icons: {valid_icons}")
     
     if valid_icons == 0:
         if debug:
             print(f"    DEBUG: No valid icons found, returning 0.0")
         return 0.0
     
-    result = total_similarity / valid_icons
+    result = total_distance / valid_icons
     if debug:
         print(f"    DEBUG: Final result: {result:.6f}")
     return result
@@ -270,7 +266,7 @@ def main():
     if not pairwise_csv_path.exists():
         raise FileNotFoundError(f"Pairwise CSV not found at {pairwise_csv_path}")
     
-    print(f"Loading pairwise similarity data from {pairwise_csv_path}...")
+    print(f"Loading pairwise distance data from {pairwise_csv_path}...")
     df = pd.read_csv(pairwise_csv_path)
     print(f"Loaded {len(df)} pairwise comparisons")
     
@@ -280,7 +276,7 @@ def main():
     print(f"Computed k for {len(k_dict)} icons")
     
     # Process each metric
-    results = {}  # metric -> List[Dict with n, type, similarity]
+    results = {}  # metric -> List[Dict with n, type, distance]
     
     for metric in args.metrics:
         print(f"\n{'='*60}")
@@ -316,31 +312,31 @@ def main():
         
         for n, assignments in equilibria_by_n.items():
             # Average across all equilibria for this n
-            similarities = []
+            distances = []
             for assignment in assignments:
-                sim = compute_expected_pairwise_similarity(df, assignment, metric, k_dict, debug=args.debug)
-                similarities.append(sim)
+                dist = compute_expected_pairwise_distance(df, assignment, metric, k_dict, debug=args.debug)
+                distances.append(dist)
             
-            avg_sim = np.mean(similarities)
+            avg_dist = np.mean(distances)
             metric_results.append({
                 "n": n,
                 "type": "Equilibrium",
-                "similarity": avg_sim
+                "distance": avg_dist
             })
-            print(f"  n={n}: avg pairwise similarity = {avg_sim:.6f} (across {len(assignments)} equilibria)")
+            print(f"  n={n}: avg pairwise distance = {avg_dist:.6f} (across {len(assignments)} equilibria)")
         
         # Process socially optimal
         print("Processing socially optimal strategies...")
         for opt in equilibria_data.get("socially_optimal", []):
             n = opt["n"]
             assignment = opt["assignment"]
-            sim = compute_expected_pairwise_similarity(df, assignment, metric, k_dict, debug=args.debug)
+            dist = compute_expected_pairwise_distance(df, assignment, metric, k_dict, debug=args.debug)
             metric_results.append({
                 "n": n,
                 "type": "Socially Optimal",
-                "similarity": sim
+                "distance": dist
             })
-            print(f"  n={n}: pairwise similarity = {sim:.6f}")
+            print(f"  n={n}: pairwise distance = {dist:.6f}")
         
         results[metric] = metric_results
     
@@ -359,10 +355,10 @@ def main():
             continue
         
         plt.figure(figsize=(10, 6))
-        sns.lineplot(data=df_plot, x="n", y="similarity", hue="type", marker="o")
-        plt.title(f"Expected Pairwise Similarity vs Number of Players ({metric})")
+        sns.lineplot(data=df_plot, x="n", y="distance", hue="type", marker="o")
+        plt.title(f"Expected Pairwise Distance vs Number of Players ({metric})")
         plt.xlabel("Number of Players (n)")
-        plt.ylabel("Expected Pairwise Similarity")
+        plt.ylabel("Expected Pairwise Distance")
         plt.legend(title="Strategy Type")
         plt.tight_layout()
         

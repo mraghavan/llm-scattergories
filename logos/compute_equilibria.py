@@ -16,11 +16,11 @@ def parse_args():
         help="Input CSV filename (should be in the logos directory).",
     )
     parser.add_argument(
-        "--similarity-metric",
+        "--distance-metric",
         type=str,
-        default="dino_cosine",
-        choices=["dino_cosine", "clip_cosine", "lpips", "dreamsim", "all"],
-        help="Similarity metric to use. Use 'all' to run for all metrics.",
+        default="lpips",
+        choices=["lpips", "dreamsim", "all"],
+        help="Distance metric to use. Use 'all' to run for all metrics.",
     )
     parser.add_argument(
         "--max-players",
@@ -56,8 +56,8 @@ def compute_equilibria(metric, input_path, output_dir, max_players, max_icons, r
     print(f"{'='*60}")
     
     # Load data
-    df = game_simulation.load_similarity_data(input_path, metric)
-    print(f"Loaded {len(df)} similarity measurements")
+    df = game_simulation.load_distance_data(input_path, metric)
+    print(f"Loaded {len(df)} distance measurements")
     
     grouped_data = game_simulation.group_by_icon_and_model(df, metric)
     
@@ -134,25 +134,19 @@ def compute_equilibria(metric, input_path, output_dir, max_players, max_icons, r
         if not equilibria:
             print(f"  Warning: No equilibria found for n={n}")
         
-        # Socially Optimal: Find assignment that maximizes expected max score
+        # Socially Optimal: Find assignment that minimizes expected min score
         print(f"  Finding socially optimal assignment...")
-        optimal_score = float('-inf') if not game_simulation.is_lower_better(metric) else float('inf')
+        optimal_score = float('inf')
         optimal_assignment = None
         
         for assignment in utilities.keys():
             score = game_simulation.get_expected_max_score(
                 grouped_data, list(assignment), metric
             )
-            if game_simulation.is_lower_better(metric):
-                # For LPIPS and DreamSim (distance metrics), lower is better
-                if score < optimal_score:
-                    optimal_score = score
-                    optimal_assignment = assignment
-            else:
-                # For cosine similarities, higher is better
-                if score > optimal_score:
-                    optimal_score = score
-                    optimal_assignment = assignment
+            # For distance metrics, lower is better
+            if score < optimal_score:
+                optimal_score = score
+                optimal_assignment = assignment
         
         if optimal_assignment is not None:
             print(f"    Optimal assignment: {optimal_assignment} (score: {optimal_score:.4f})")
@@ -193,10 +187,10 @@ def main():
         raise FileNotFoundError(f"Input CSV not found at {input_path}")
     
     metrics_to_run = []
-    if args.similarity_metric == "all":
-        metrics_to_run = ["dino_cosine", "clip_cosine", "lpips", "dreamsim"]
+    if args.distance_metric == "all":
+        metrics_to_run = ["lpips", "dreamsim"]
     else:
-        metrics_to_run = [args.similarity_metric]
+        metrics_to_run = [args.distance_metric]
         
     for metric in metrics_to_run:
         compute_equilibria(

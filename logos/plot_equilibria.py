@@ -12,11 +12,11 @@ import seaborn as sns
 def parse_args():
     parser = argparse.ArgumentParser(description="Plot equilibria and socially optimal strategies from JSON files")
     parser.add_argument(
-        "--similarity-metric",
+        "--distance-metric",
         type=str,
-        default="dino_cosine",
-        choices=["dino_cosine", "clip_cosine", "lpips", "dreamsim", "all"],
-        help="Similarity metric to use. Use 'all' to run for all metrics.",
+        default="lpips",
+        choices=["lpips", "dreamsim", "all"],
+        help="Distance metric to use. Use 'all' to run for all metrics.",
     )
     parser.add_argument(
         "--input-dir",
@@ -82,8 +82,8 @@ def compute_performance_scores(equilibria_data: List[Dict], optimal_data: List[D
             
             if count_with_scores > 0:
                 avg_score = total_score / count_with_scores
-                # For LPIPS and DreamSim (distance metrics), transform to 1 - score so higher is better (similarity)
-                plot_score = (1 - avg_score) if metric in ["lpips", "dreamsim"] else avg_score
+                # For distance metrics, transform to 1 - score so higher is better for visualization
+                plot_score = 1 - avg_score
                 performance_data.append({
                     "n": n,
                     "score": plot_score,
@@ -96,8 +96,8 @@ def compute_performance_scores(equilibria_data: List[Dict], optimal_data: List[D
             # Should only be one optimal per n
             opt = opt_for_n[0]
             optimal_score = opt["score"]
-            # For LPIPS and DreamSim (distance metrics), transform to 1 - score so higher is better (similarity)
-            plot_score = (1 - optimal_score) if metric in ["lpips", "dreamsim"] else optimal_score
+            # For distance metrics, transform to 1 - score so higher is better for visualization
+            plot_score = 1 - optimal_score
             performance_data.append({
                 "n": n,
                 "score": plot_score,
@@ -231,7 +231,7 @@ def plot_equilibria(metric, input_dir, output_dir):
         sns.lineplot(data=df_perf, x="n", y="score", hue="type", marker="o")
         plt.title(f"System Performance vs Number of Players ({metric})")
         plt.xlabel("Number of Players (n)")
-        plt.ylabel("Expected Max Similarity Score")
+        plt.ylabel("Expected Min Distance Score (transformed)")
         plt.tight_layout()
         plt.savefig(output_dir / f"system_performance_{metric}.png", dpi=600)
         plt.close()
@@ -249,10 +249,10 @@ def main():
     output_dir.mkdir(exist_ok=True)
     
     metrics_to_run = []
-    if args.similarity_metric == "all":
-        metrics_to_run = ["dino_cosine", "clip_cosine", "lpips", "dreamsim"]
+    if args.distance_metric == "all":
+        metrics_to_run = ["lpips", "dreamsim"]
     else:
-        metrics_to_run = [args.similarity_metric]
+        metrics_to_run = [args.distance_metric]
         
     for metric in metrics_to_run:
         plot_equilibria(

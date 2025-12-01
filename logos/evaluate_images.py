@@ -12,8 +12,8 @@ from PIL import Image
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Evaluate similarity between original logos and generated images. "
-            "Uses multiple visual metrics (LPIPS, CLIP, DINO, DreamSim)."
+            "Evaluate distance between original logos and generated images. "
+            "Uses multiple visual metrics (LPIPS, DreamSim)."
         )
     )
     parser.add_argument(
@@ -32,16 +32,6 @@ def parse_args() -> argparse.Namespace:
         "--no-lpips",
         action="store_true",
         help="Disable LPIPS metric (if you don't have the lpips package installed).",
-    )
-    parser.add_argument(
-        "--no-clip",
-        action="store_true",
-        help="Disable CLIP metric.",
-    )
-    parser.add_argument(
-        "--no-dino",
-        action="store_true",
-        help="Disable DINO metric.",
     )
     parser.add_argument(
         "--no-dreamsim",
@@ -262,120 +252,6 @@ def compute_lpips(
     with torch.no_grad():
         d = metric(orig_in, gen_in)
     return float(d.item())
-
-
-def setup_clip(device: torch.device):
-    from transformers import CLIPModel, CLIPImageProcessor  # type: ignore
-
-    model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
-    model.eval()
-    processor = CLIPImageProcessor.from_pretrained("openai/clip-vit-base-patch32")
-    return model, processor
-
-
-def compute_clip_embedding(
-    model,
-    processor,
-    device: torch.device,
-    img: Image.Image,
-) -> torch.Tensor:
-    """Compute CLIP embedding for a single image. Returns CPU tensor to save GPU memory."""
-    import torch.nn.functional as F
-    
-    inputs = processor(
-        images=[img],
-        return_tensors="pt",
-    ).to(device)
-    with torch.no_grad():
-        feat = model.get_image_features(**inputs)
-    feat = F.normalize(feat, dim=-1)
-    feat = feat.squeeze(0)  # Remove batch dimension
-    return feat.cpu()  # Move to CPU to save GPU memory
-
-
-def compute_clip_cosine_from_embeddings(
-    emb1: torch.Tensor,
-    emb2: torch.Tensor,
-) -> float:
-    """Compute cosine similarity between two CLIP embeddings. Works with CPU tensors."""
-    # Embeddings are on CPU, computation can be done there
-    sim = torch.sum(emb1 * emb2).item()
-    return float(sim)
-
-
-def compute_clip_cosine(
-    model,
-    processor,
-    device: torch.device,
-    orig_img: Image.Image,
-    gen_img: Image.Image,
-) -> float:
-    """Legacy function for backward compatibility."""
-    emb1 = compute_clip_embedding(model, processor, device, orig_img)
-    emb2 = compute_clip_embedding(model, processor, device, gen_img)
-    return compute_clip_cosine_from_embeddings(emb1, emb2)
-
-
-def setup_dino(device: torch.device):
-    # Uses torch.hub; this will download the Dinov2 model code/weights on first run.
-    model = torch.hub.load("facebookresearch/dinov2", "dinov2_vits14")  # type: ignore
-    model.to(device)
-    model.eval()
-
-    from torchvision import transforms  # type: ignore
-
-    transform = transforms.Compose(
-        [
-            transforms.Resize(256, interpolation=Image.BICUBIC),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225],
-            ),
-        ]
-    )
-    return model, transform
-
-
-def compute_dino_embedding(
-    model,
-    transform,
-    device: torch.device,
-    img: Image.Image,
-) -> torch.Tensor:
-    """Compute DINO embedding for a single image. Returns CPU tensor to save GPU memory."""
-    import torch.nn.functional as F
-    
-    img_tensor = transform(img).unsqueeze(0).to(device)
-    with torch.no_grad():
-        feat = model(img_tensor)
-    feat = F.normalize(feat, dim=-1)
-    feat = feat.squeeze(0)  # Remove batch dimension
-    return feat.cpu()  # Move to CPU to save GPU memory
-
-
-def compute_dino_cosine_from_embeddings(
-    emb1: torch.Tensor,
-    emb2: torch.Tensor,
-) -> float:
-    """Compute cosine similarity between two DINO embeddings. Works with CPU tensors."""
-    # Embeddings are on CPU, computation can be done there
-    sim = torch.sum(emb1 * emb2).item()
-    return float(sim)
-
-
-def compute_dino_cosine(
-    model,
-    transform,
-    device: torch.device,
-    orig_img: Image.Image,
-    gen_img: Image.Image,
-) -> float:
-    """Legacy function for backward compatibility."""
-    emb1 = compute_dino_embedding(model, transform, device, orig_img)
-    emb2 = compute_dino_embedding(model, transform, device, gen_img)
-    return compute_dino_cosine_from_embeddings(emb1, emb2)
 
 
 def maybe_import_dreamsim():
@@ -603,20 +479,12 @@ def main() -> None:
 
     # Set up metrics
     lpips_metric = None
-    clip_model = clip_processor = None
-    dino_model = dino_transform = None
     dreamsim_model = dreamsim_preprocess = None
 
     if not args.no_lpips:
         lpips_metric = setup_lpips(device)
         if lpips_metric is None:
             print("LPIPS package not found; LPIPS metric will be skipped.")
-
-    if not args.no_clip:
-        clip_model, clip_processor = setup_clip(device)
-
-    if not args.no_dino:
-        dino_model, dino_transform = setup_dino(device)
 
     if not args.no_dreamsim:
         dreamsim_model, dreamsim_preprocess = setup_dreamsim(device)
@@ -687,22 +555,8 @@ def main() -> None:
             # LPIPS (lower is better - lower values indicate greater similarity)
             lpips_val = compute_lpips(lpips_metric, orig_tensor, gen_tensor) if lpips_metric is not None else None
 
-            # CLIP cosine similarity
-            clip_cosine = (
-                compute_clip_cosine(clip_model, clip_processor, device, orig_img, gen_img)
-                if clip_model is not None and clip_processor is not None
-                else None
-            )
-
-            # DINO cosine similarity
-            dino_cosine = (
-                compute_dino_cosine(dino_model, dino_transform, device, orig_img, gen_img)
-                if dino_model is not None and dino_transform is not None
-                else None
-            )
-
-            # DreamSim similarity
-            dreamsim_similarity = (
+            # DreamSim distance
+            dreamsim_distance = (
                 compute_dreamsim_similarity(dreamsim_model, dreamsim_preprocess, device, orig_img, gen_img)
                 if dreamsim_model is not None and dreamsim_preprocess is not None
                 else None
@@ -713,9 +567,7 @@ def main() -> None:
                 "model_name": model_name,
                 "seed": seed,
                 "lpips": lpips_val,
-                "clip_cosine": clip_cosine,
-                "dino_cosine": dino_cosine,
-                "dreamsim": dreamsim_similarity,
+                "dreamsim": dreamsim_distance,
             })
 
     combined_original_results = existing_original_records + new_original_results
