@@ -274,6 +274,49 @@ def compute_lpips_from_features(
     return float(d.item())
 
 
+def compute_lpips_on_demand(
+    metric,
+    img1: Image.Image,
+    img2: Image.Image,
+    common_size: Optional[Tuple[int, int]],
+    device: torch.device,
+) -> Optional[float]:
+    """
+    Compute LPIPS distance directly from two images (on-demand computation).
+    More memory efficient than pre-computing all features, but slower.
+    
+    LPIPS is a distance metric where lower values indicate greater similarity.
+    - Lower is better (0.0 = identical)
+    - Higher values indicate more perceptual difference
+    """
+    if metric is None:
+        return None
+    
+    # Resize images to common size if needed
+    if common_size and img1.size != common_size:
+        img1 = resize_to_match(img1, common_size)
+    if common_size and img2.size != common_size:
+        img2 = resize_to_match(img2, common_size)
+    
+    # Convert to tensors
+    img1_tensor = to_tensor(img1, device)
+    img2_tensor = to_tensor(img2, device)
+    
+    # LPIPS expects inputs in [-1, 1]
+    img1_in = (img1_tensor * 2.0) - 1.0
+    img2_in = (img2_tensor * 2.0) - 1.0
+    
+    with torch.no_grad():
+        # Use the metric directly (it handles feature extraction and distance computation)
+        distance = metric(img1_in, img2_in)
+        # Clear GPU memory
+        del img1_tensor, img2_tensor, img1_in, img2_in
+        if device.type == 'cuda':
+            torch.cuda.empty_cache()
+    
+    return float(distance.item())
+
+
 def setup_clip(device: torch.device):
     from transformers import CLIPModel, CLIPImageProcessor  # type: ignore
 
@@ -662,13 +705,14 @@ def process_base_name(
     # Step 1: Load all images and compute embeddings/features once per image
     print(f"Computing embeddings for {len(image_list)} images...", end=" ", flush=True)
     embedding_start_time = time.time()
-    image_data: List[Tuple[Path, str, int, Image.Image, Optional[object], Optional[torch.Tensor], Optional[torch.Tensor], Image.Image]] = []
-    # Structure: (path, model_name, seed, pil_image, lpips_features, clip_embedding, dino_embedding, pil_image_for_dreamsim)
-    # Note: We keep the PIL image separately for DreamSim since it needs to be preprocessed differently
+    image_data: List[Tuple[Path, str, int, Image.Image, Optional[torch.Tensor], Optional[torch.Tensor], Image.Image]] = []
+    # Structure: (path, model_name, seed, pil_image, clip_embedding, dino_embedding, pil_image_for_dreamsim)
+    # Note: LPIPS features are computed on-demand during pairwise comparisons to save memory
     
     # Determine common size for LPIPS (use median size to minimize resizing)
     # Also pre-load images to avoid loading twice
     loaded_images: Dict[Path, Image.Image] = {}
+    common_size = None
     if lpips_metric is not None and image_list:
         sizes = []
         for path, _, _ in image_list:
@@ -682,8 +726,7 @@ def process_base_name(
         common_height = heights.most_common(1)[0][0]
         common_size = (common_width, common_height)
     else:
-        common_size = None
-        # Still need to load images if LPIPS is disabled
+        # Still need to load images
         for path, _, _ in image_list:
             if path not in loaded_images:
                 loaded_images[path] = load_pil_image(path)
@@ -691,19 +734,8 @@ def process_base_name(
     for idx, (path, model_name, seed) in enumerate(image_list, 1):
         img = loaded_images[path]
         
-        # Compute LPIPS features (resize to common size if needed)
-        lpips_features = None
-        if lpips_metric is not None:
-            if common_size and img.size != common_size:
-                img_resized = resize_to_match(img, common_size)
-            else:
-                img_resized = img
-            lpips_tensor = to_tensor(img_resized, device)
-            lpips_features = compute_lpips_features(lpips_metric, lpips_tensor)
-            # Clear GPU memory after extracting features
-            del lpips_tensor
-            if device.type == 'cuda':
-                torch.cuda.empty_cache()
+        # LPIPS features are computed on-demand during pairwise comparisons to save memory
+        # We don't pre-compute them here
         
         # Compute CLIP embedding
         clip_emb = None
@@ -721,9 +753,9 @@ def process_base_name(
             if device.type == 'cuda':
                 torch.cuda.empty_cache()
         
-        # Keep PIL image for DreamSim (it will be preprocessed on-the-fly during pairwise comparison)
-        # We store it separately since DreamSim preprocessing is different from other metrics
-        image_data.append((path, model_name, seed, img, lpips_features, clip_emb, dino_emb, img))
+        # Keep PIL image for DreamSim and LPIPS (they will be preprocessed on-the-fly during pairwise comparison)
+        # Structure: (path, model_name, seed, pil_image, clip_embedding, dino_embedding, pil_image_for_dreamsim)
+        image_data.append((path, model_name, seed, img, clip_emb, dino_emb, img))
         
         # Progress update every 20% or at the end
         if idx % max(1, len(image_list) // 5) == 0 or idx == len(image_list):
@@ -736,6 +768,7 @@ def process_base_name(
     print(f"done in {format_time(embedding_elapsed)} ({format_time(embedding_elapsed / len(image_list))} per image)")
     
     # Step 2: Compute all pairwise similarities from precomputed embeddings
+    # LPIPS is computed on-demand to save memory
     total_pairs = len(image_data) * (len(image_data) - 1) // 2
     print(f"Computing {len(missing_keys)} pairwise comparisons...", end=" ", flush=True)
     pairwise_start_time = time.time()
@@ -743,12 +776,13 @@ def process_base_name(
     skipped_count = 0
     computed_count = 0
     pair_num = 0
+    batch_write_size = 100  # Write results in batches to reduce memory usage
     
     for i in range(len(image_data)):
         for j in range(i + 1, len(image_data)):
             pair_num += 1
-            path1, model_name1, seed1, img1, lpips_feat1, clip_emb1, dino_emb1, img1_dreamsim = image_data[i]
-            path2, model_name2, seed2, img2, lpips_feat2, clip_emb2, dino_emb2, img2_dreamsim = image_data[j]
+            path1, model_name1, seed1, img1, clip_emb1, dino_emb1, img1_dreamsim = image_data[i]
+            path2, model_name2, seed2, img2, clip_emb2, dino_emb2, img2_dreamsim = image_data[j]
             
             key = make_result_key_pairwise(base_name, model_name1, seed1, model_name2, seed2)
             if key in existing_pairwise_keys:
@@ -758,9 +792,10 @@ def process_base_name(
             computed_count += 1
             
             # LPIPS (lower is better - lower values indicate greater similarity)
+            # Compute on-demand to save memory
             lpips_val = None
-            if lpips_metric is not None and lpips_feat1 is not None and lpips_feat2 is not None:
-                lpips_val = compute_lpips_from_features(lpips_metric, lpips_feat1, lpips_feat2, device)
+            if lpips_metric is not None:
+                lpips_val = compute_lpips_on_demand(lpips_metric, img1, img2, common_size, device)
             
             # CLIP cosine similarity
             clip_cosine = None
@@ -801,6 +836,11 @@ def process_base_name(
                 "dreamsim": dreamsim_val,
             })
             
+            # Write results in batches to reduce memory usage
+            if len(new_pairwise_results) >= batch_write_size:
+                write_results_csv(new_pairwise_results, pairwise_output_path)
+                new_pairwise_results = []  # Clear the list after writing
+            
             # Progress update every 10% or at the end
             if computed_count % max(1, len(missing_keys) // 10) == 0 or computed_count == len(missing_keys):
                 elapsed = time.time() - pairwise_start_time
@@ -808,15 +848,16 @@ def process_base_name(
                 remaining = (len(missing_keys) - computed_count) / rate if rate > 0 else 0
                 print(f"{computed_count}/{len(missing_keys)} (ETA: {format_time(remaining)})", end="\r", flush=True)
     
+    # Write any remaining results
+    if new_pairwise_results:
+        write_results_csv(new_pairwise_results, pairwise_output_path)
+    
     pairwise_elapsed = time.time() - pairwise_start_time
     print(f"done in {format_time(pairwise_elapsed)}", end="")
     if computed_count > 0:
         print(f" ({format_time(pairwise_elapsed / computed_count)} per comparison)")
     else:
         print()
-    
-    # Write results to CSV
-    write_results_csv(new_pairwise_results, pairwise_output_path)
 
 
 def main() -> None:
