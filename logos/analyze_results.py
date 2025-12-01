@@ -33,10 +33,15 @@ def print_section(title: str) -> None:
     print("=" * 80)
 
 
+def get_available_metrics(df: pd.DataFrame) -> list[str]:
+    """Get list of metrics that exist in the dataframe and have at least one non-null value."""
+    metrics = ["lpips", "clip_cosine", "dino_cosine", "dreamsim"]
+    return [m for m in metrics if m in df.columns and df[m].notna().any()]
+
+
 def compute_model_statistics(df: pd.DataFrame) -> pd.DataFrame:
     """Compute statistics per model for each metric."""
-    metrics = ["lpips", "clip_cosine", "dino_cosine"]
-    available_metrics = [m for m in metrics if m in df.columns]
+    available_metrics = get_available_metrics(df)
 
     stats_list = []
     for model in df["model_name"].dropna().unique():
@@ -77,8 +82,8 @@ def rank_models_by_metric(stats_df: pd.DataFrame, metric: str) -> pd.DataFrame:
     if len(metric_df) == 0:
         return pd.DataFrame()
 
-    # LPIPS is lower-is-better; cosine similarities are higher-is-better
-    if metric == "lpips":
+    # LPIPS and DreamSim are lower-is-better; cosine similarities are higher-is-better
+    if metric in ["lpips", "dreamsim"]:
         metric_df = metric_df.sort_values(mean_col, ascending=True)
         metric_df["rank"] = range(1, len(metric_df) + 1)
     else:
@@ -88,17 +93,15 @@ def rank_models_by_metric(stats_df: pd.DataFrame, metric: str) -> pd.DataFrame:
     return metric_df[["model_name", "rank", mean_col, f"{metric}_std", f"{metric}_count"]]
 
 
-def print_model_rankings(stats_df: pd.DataFrame) -> None:
+def print_model_rankings(stats_df: pd.DataFrame, available_metrics: list[str]) -> None:
     """Print rankings for each metric."""
-    metrics = ["lpips", "clip_cosine", "dino_cosine"]
-
-    for metric in metrics:
+    for metric in available_metrics:
         ranking = rank_models_by_metric(stats_df, metric)
         if len(ranking) == 0:
             continue
 
         print_section(f"Model Rankings by {metric.upper().replace('_', ' ')}")
-        if metric == "lpips":
+        if metric in ["lpips", "dreamsim"]:
             print("(Lower is better)")
         else:
             print("(Higher is better)")
@@ -128,8 +131,7 @@ def print_summary_statistics(df: pd.DataFrame) -> None:
     print(f"Unique models: {df['model_name'].nunique()}")
     print(f"Unique base names: {df['base_name'].nunique()}")
 
-    metrics = ["lpips", "clip_cosine", "dino_cosine"]
-    available_metrics = [m for m in metrics if m in df.columns]
+    available_metrics = get_available_metrics(df)
 
     print("\nMetric availability:")
     for metric in available_metrics:
@@ -141,8 +143,7 @@ def print_per_base_statistics(df: pd.DataFrame) -> None:
     """Print statistics broken down by base_name."""
     print_section("Statistics by Base Name")
 
-    metrics = ["lpips", "clip_cosine", "dino_cosine"]
-    available_metrics = [m for m in metrics if m in df.columns]
+    available_metrics = get_available_metrics(df)
 
     for base_name in sorted(df["base_name"].unique()):
         base_df = df[df["base_name"] == base_name]
@@ -154,7 +155,7 @@ def print_per_base_statistics(df: pd.DataFrame) -> None:
             values = base_df[metric].dropna()
             if len(values) > 0:
                 best_model = None
-                if metric == "lpips":
+                if metric in ["lpips", "dreamsim"]:
                     best_idx = values.idxmin()
                     best_model = base_df.loc[best_idx, "model_name"]
                     best_val = values.min()
@@ -185,6 +186,9 @@ def main() -> None:
         print("No data found in CSV.")
         return
 
+    # Get available metrics (those with actual data)
+    available_metrics = get_available_metrics(df)
+
     # Print overall summary
     print_summary_statistics(df)
 
@@ -193,7 +197,7 @@ def main() -> None:
     print_detailed_statistics(stats_df)
 
     # Print rankings
-    print_model_rankings(stats_df)
+    print_model_rankings(stats_df, available_metrics)
 
     # Print per-base statistics
     print_per_base_statistics(df)
