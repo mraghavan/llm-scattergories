@@ -1,4 +1,8 @@
 trees/
+*.png
+plots/
+*.csv
+*generated_images/
 scores/
 info/
 samples/
