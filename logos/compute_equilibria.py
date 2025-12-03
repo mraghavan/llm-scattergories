@@ -57,7 +57,9 @@ def compute_equilibria(metric, input_path, output_dir, max_players, max_icons, r
     
     # Load data
     df = game_simulation.load_distance_data(input_path, metric)
+    num_base_names = df["base_name"].nunique()
     print(f"Loaded {len(df)} distance measurements")
+    print(f"Number of base names (icons): {num_base_names}")
     
     grouped_data = game_simulation.group_by_icon_and_model(df, metric)
     
