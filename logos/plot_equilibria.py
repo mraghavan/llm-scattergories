@@ -10,6 +10,11 @@ import seaborn as sns
 
 import game_simulation
 
+metric_to_text = {
+    'dreamsim': 'DreamSim',
+    'lpips': 'LPIPS'
+}
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Plot equilibria and socially optimal strategies from JSON files")
@@ -280,9 +285,10 @@ def plot_equilibria(metric, input_dir, output_dir, csv_path):
         df_pivot = df_pivot.sort_index(axis=1, ascending=False)
         
         ax = df_pivot.plot(kind="bar", stacked=True, figsize=(10, 6), colormap="viridis")
-        plt.title(f"Equilibrium Model Selection vs Number of Players ({metric})")
-        plt.xlabel("Number of Players (n)")
-        plt.ylabel("Share of Players")
+        metric_name = metric_to_text[metric]
+        plt.title(f"Equilibrium market shares ({metric_name})")
+        plt.xlabel("$n$")
+        plt.ylabel("Market share")
         
         # Set legend order to alphabetical (A to Z) from top to bottom
         handles, labels = ax.get_legend_handles_labels()
@@ -311,9 +317,10 @@ def plot_equilibria(metric, input_dir, output_dir, csv_path):
         df_pivot = df_pivot.sort_index(axis=1, ascending=False)
         
         ax = df_pivot.plot(kind="bar", stacked=True, figsize=(10, 6), colormap="viridis")
-        plt.title(f"Socially Optimal Model Selection vs Number of Players ({metric})")
-        plt.xlabel("Number of Players (n)")
-        plt.ylabel("Share of Players")
+        metric_name = metric_to_text[metric]
+        plt.title(f"Socially optimal market shares ({metric_name})")
+        plt.xlabel("$n$")
+        plt.ylabel("Market share")
         
         # Set legend order to alphabetical (A to Z) from top to bottom
         handles, labels = ax.get_legend_handles_labels()
@@ -338,9 +345,10 @@ def plot_equilibria(metric, input_dir, output_dir, csv_path):
     if not df_perf.empty:
         plt.figure(figsize=(10, 6))
         sns.lineplot(data=df_perf, x="n", y="score", hue="type", marker="o")
-        plt.title(f"System Performance vs Number of Players ({metric})")
-        plt.xlabel("Number of Players (n)")
-        plt.ylabel("Expected Min Distance Score (transformed)")
+        metric_name = metric_to_text[metric]
+        plt.title(f"Distance to target ({metric_name})")
+        plt.xlabel("$n$")
+        plt.ylabel("Expected distance to target")
         plt.tight_layout()
         plt.savefig(output_dir / f"system_performance_{metric}.png", dpi=600)
         plt.close()
