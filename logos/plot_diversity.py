@@ -18,6 +18,11 @@ import pandas as pd
 import seaborn as sns
 from scipy.special import comb
 
+metric_to_text = {
+    'dreamsim': 'DreamSim',
+    'lpips': 'LPIPS'
+}
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Plot expected pairwise distance (diversity)")
@@ -182,13 +187,14 @@ def compute_expected_pairwise_distance(
                             print(f"    DEBUG:     No pairs found for {model1} vs {model1}")
                         continue
                     
-                    # Weight: C(count1, 2) / (C(n, 2) * C(k1, 2))
-                    if count1 < 2 or k1 < 2:
+                    # Weight: C(count1, 2) / C(n, 2)
+                    # This is the probability that a random pair of players both use model1
+                    if count1 < 2:
                         if debug:
-                            print(f"    DEBUG:     Skipping {model1} vs {model1}: count1={count1}, k1={k1}")
+                            print(f"    DEBUG:     Skipping {model1} vs {model1}: count1={count1}")
                         continue
                     
-                    weight = comb(count1, 2, exact=True) / (comb(n, 2, exact=True) * comb(k1, 2, exact=True))
+                    weight = comb(count1, 2, exact=True) / comb(n, 2, exact=True)
                     
                     # Average distance over all pairs
                     raw_avg = pairs_df[metric].mean()
@@ -210,13 +216,14 @@ def compute_expected_pairwise_distance(
                             print(f"    DEBUG:     No pairs found for {model1} vs {model2}")
                         continue
                     
-                    # Weight: C(count1, 1) * C(count2, 1) / (C(n, 2) * k1 * k2)
-                    if count1 < 1 or count2 < 1 or k1 < 1 or k2 < 1:
+                    # Weight: (count1 * count2) / C(n, 2)
+                    # This is the probability that a random pair of players uses model1 and model2
+                    if count1 < 1 or count2 < 1:
                         if debug:
-                            print(f"    DEBUG:     Skipping {model1} vs {model2}: count1={count1}, count2={count2}, k1={k1}, k2={k2}")
+                            print(f"    DEBUG:     Skipping {model1} vs {model2}: count1={count1}, count2={count2}")
                         continue
                     
-                    weight = (comb(count1, 1, exact=True) * comb(count2, 1, exact=True)) / (comb(n, 2, exact=True) * k1 * k2)
+                    weight = (count1 * count2) / comb(n, 2, exact=True)
                     
                     # Average distance over all pairs
                     raw_avg = pairs_df[metric].mean()
@@ -333,7 +340,7 @@ def main():
             dist = compute_expected_pairwise_distance(df, assignment, metric, k_dict, debug=args.debug)
             metric_results.append({
                 "n": n,
-                "type": "Socially Optimal",
+                "type": "Socially optimal",
                 "distance": dist
             })
             print(f"  n={n}: pairwise distance = {dist:.6f}")
@@ -356,9 +363,10 @@ def main():
         
         plt.figure(figsize=(10, 6))
         sns.lineplot(data=df_plot, x="n", y="distance", hue="type", marker="o")
-        plt.title(f"Expected Pairwise Distance vs Number of Players ({metric})")
-        plt.xlabel("Number of Players (n)")
-        plt.ylabel("Expected Pairwise Distance")
+        metric_name = metric_to_text[metric]
+        plt.title(f"Image diversity ({metric_name})")
+        plt.xlabel("$n$")
+        plt.ylabel("Average pairwise distance")
         plt.legend(title="Strategy Type")
         plt.tight_layout()
         

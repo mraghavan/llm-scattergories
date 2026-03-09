@@ -16,6 +16,13 @@ metric_to_text = {
 }
 
 
+def format_model_name_for_display(model_name: str) -> str:
+    """Format model name for display in plots. Changes flux1.dev to FLUX.1-dev."""
+    if model_name == "flux1.dev":
+        return "FLUX.1-dev"
+    return model_name
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Plot equilibria and socially optimal strategies from JSON files")
     parser.add_argument(
@@ -98,12 +105,12 @@ def compute_performance_scores(equilibria_data: List[Dict], optimal_data: List[D
             
             if count_with_scores > 0:
                 avg_score = total_score / count_with_scores
-                # For distance metrics, transform to 1 - score so higher is better for visualization
-                plot_score = 1 - avg_score
+                # Use raw distance score (lower is better for distance metrics)
+                plot_score = avg_score
                 performance_data.append({
                     "n": n,
                     "score": plot_score,
-                    "type": "Strategic (Nash)"
+                    "type": "Equilibrium"
                 })
         
         # Compute socially optimal performance from JSON data
@@ -112,12 +119,12 @@ def compute_performance_scores(equilibria_data: List[Dict], optimal_data: List[D
             # Should only be one optimal per n
             opt = opt_for_n[0]
             optimal_score = opt["score"]
-            # For distance metrics, transform to 1 - score so higher is better for visualization
-            plot_score = 1 - optimal_score
+            # Use raw distance score (lower is better for distance metrics)
+            plot_score = optimal_score
             performance_data.append({
                 "n": n,
                 "score": plot_score,
-                "type": "Socially Optimal"
+                "type": "Socially optimal"
             })
     
     return performance_data
@@ -273,70 +280,81 @@ def plot_equilibria(metric, input_dir, output_dir, csv_path):
     
     # Plotting
     sns.set_theme(style="whitegrid")
+    # Set larger default font sizes
+    plt.rcParams.update({'font.size': 14})
+    plt.rcParams.update({'axes.titlesize': 16})
+    plt.rcParams.update({'axes.labelsize': 14})
+    plt.rcParams.update({'xtick.labelsize': 12})
+    plt.rcParams.update({'ytick.labelsize': 12})
+    plt.rcParams.update({'legend.fontsize': 12})
     
-    # Plot 1: Market Share (Stacked Bar Chart) - Nash Equilibria
-    print("\nGenerating Market Share Plot (Nash Equilibria)...")
+    # Plot 1: Market Share (Stacked Bar Chart) - Combined Equilibrium and Optimal
+    print("\nGenerating Market Share Plot (Combined)...")
     df_share = pd.DataFrame(market_share_data)
+    df_optimal_share = pd.DataFrame(optimal_market_share_data)
     
-    if not df_share.empty:
-        # Pivot for stacked bar
-        df_pivot = df_share.pivot(index="n", columns="model", values="share").fillna(0)
-        # Sort columns in reverse alphabetical order (Z to A) so alphabetically first appears at top of stack
-        df_pivot = df_pivot.sort_index(axis=1, ascending=False)
-        
-        ax = df_pivot.plot(kind="bar", stacked=True, figsize=(10, 6), colormap="viridis")
+    if not df_share.empty or not df_optimal_share.empty:
+        # Create figure with two subplots side by side
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 6))
         metric_name = metric_to_text[metric]
-        plt.title(f"Equilibrium market shares ({metric_name})")
-        plt.xlabel("$n$")
-        plt.ylabel("Market share")
         
-        # Set legend order to alphabetical (A to Z) from top to bottom
-        handles, labels = ax.get_legend_handles_labels()
-        # Create a mapping of label to handle for correct pairing
-        label_to_handle = dict(zip(labels, handles))
-        # Get all unique labels sorted alphabetically (A to Z)
-        sorted_labels = sorted(set(labels))
-        # Create handles list in the same alphabetical order
-        sorted_handles = [label_to_handle[label] for label in sorted_labels]
-        ax.legend(sorted_handles, sorted_labels, title="Model", bbox_to_anchor=(1.05, 1), loc='upper left')
+        # Left panel: Equilibrium market shares
+        if not df_share.empty:
+            df_pivot_eq = df_share.pivot(index="n", columns="model", values="share").fillna(0)
+            # Sort columns in reverse alphabetical order (Z to A) so alphabetically first appears at top of stack
+            df_pivot_eq = df_pivot_eq.sort_index(axis=1, ascending=False)
+            
+            df_pivot_eq.plot(kind="bar", stacked=True, ax=ax1, colormap="viridis", legend=False)
+            ax1.set_title(f"Equilibrium market shares ({metric_name})", fontsize=20)
+            ax1.set_xlabel("$n$", fontsize=18)
+            ax1.set_ylabel("Market share", fontsize=18)
+            ax1.tick_params(axis='x', labelsize=16)
+            ax1.tick_params(axis='y', labelsize=16)
+        else:
+            ax1.text(0.5, 0.5, "No equilibrium data", ha='center', va='center', transform=ax1.transAxes, fontsize=16)
+            ax1.set_title(f"Equilibrium market shares ({metric_name})", fontsize=20)
+            ax1.set_xlabel("$n$", fontsize=18)
+            ax1.set_ylabel("Market share", fontsize=18)
+            ax1.tick_params(axis='x', labelsize=16)
+            ax1.tick_params(axis='y', labelsize=16)
         
+        # Right panel: Socially optimal market shares
+        if not df_optimal_share.empty:
+            df_pivot_opt = df_optimal_share.pivot(index="n", columns="model", values="share").fillna(0)
+            # Sort columns in reverse alphabetical order (Z to A) so alphabetically first appears at top of stack
+            df_pivot_opt = df_pivot_opt.sort_index(axis=1, ascending=False)
+            
+            df_pivot_opt.plot(kind="bar", stacked=True, ax=ax2, colormap="viridis")
+            ax2.set_title(f"Socially optimal market shares ({metric_name})", fontsize=20)
+            ax2.set_xlabel("$n$", fontsize=18)
+            # Remove y-axis label and tick labels since they're the same as the left plot
+            ax2.set_ylabel("")
+            ax2.set_yticklabels([])
+            ax2.tick_params(axis='x', labelsize=16)
+            
+            # Set legend order to alphabetical (A to Z) from top to bottom
+            handles2, labels2 = ax2.get_legend_handles_labels()
+            label_to_handle2 = dict(zip(labels2, handles2))
+            sorted_labels2 = sorted(set(labels2))
+            formatted_labels2 = [format_model_name_for_display(label) for label in sorted_labels2]
+            sorted_handles2 = [label_to_handle2[label] for label in sorted_labels2]
+            ax2.legend(sorted_handles2, formatted_labels2, title="Model", bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=16, title_fontsize=18)
+        else:
+            ax2.text(0.5, 0.5, "No optimal data", ha='center', va='center', transform=ax2.transAxes, fontsize=16)
+            ax2.set_title(f"Socially optimal market shares ({metric_name})", fontsize=20)
+            ax2.set_xlabel("$n$", fontsize=18)
+            # Remove y-axis label and tick labels since they're the same as the left plot
+            ax2.set_ylabel("")
+            ax2.set_yticklabels([])
+            ax2.tick_params(axis='x', labelsize=16)
+        
+        # Add spacing between the two panels
         plt.tight_layout()
+        plt.subplots_adjust(wspace=0.15)  # Add spacing after tight_layout to override it
         plt.savefig(output_dir / f"market_share_{metric}.png", dpi=600)
         plt.close()
     else:
         print("No market share data to plot.")
-    
-    # Plot 1b: Market Share (Stacked Bar Chart) - Socially Optimal
-    print("Generating Market Share Plot (Socially Optimal)...")
-    df_optimal_share = pd.DataFrame(optimal_market_share_data)
-    
-    if not df_optimal_share.empty:
-        # Pivot for stacked bar
-        df_pivot = df_optimal_share.pivot(index="n", columns="model", values="share").fillna(0)
-        # Sort columns in reverse alphabetical order (Z to A) so alphabetically first appears at top of stack
-        df_pivot = df_pivot.sort_index(axis=1, ascending=False)
-        
-        ax = df_pivot.plot(kind="bar", stacked=True, figsize=(10, 6), colormap="viridis")
-        metric_name = metric_to_text[metric]
-        plt.title(f"Socially optimal market shares ({metric_name})")
-        plt.xlabel("$n$")
-        plt.ylabel("Market share")
-        
-        # Set legend order to alphabetical (A to Z) from top to bottom
-        handles, labels = ax.get_legend_handles_labels()
-        # Create a mapping of label to handle for correct pairing
-        label_to_handle = dict(zip(labels, handles))
-        # Get all unique labels sorted alphabetically (A to Z)
-        sorted_labels = sorted(set(labels))
-        # Create handles list in the same alphabetical order
-        sorted_handles = [label_to_handle[label] for label in sorted_labels]
-        ax.legend(sorted_handles, sorted_labels, title="Model", bbox_to_anchor=(1.05, 1), loc='upper left')
-        
-        plt.tight_layout()
-        plt.savefig(output_dir / f"market_share_optimal_{metric}.png", dpi=600)
-        plt.close()
-    else:
-        print("No socially optimal market share data to plot.")
     
     # Plot 2: System Performance
     print("Generating System Performance Plot...")
@@ -344,11 +362,13 @@ def plot_equilibria(metric, input_dir, output_dir, csv_path):
     
     if not df_perf.empty:
         plt.figure(figsize=(10, 6))
-        sns.lineplot(data=df_perf, x="n", y="score", hue="type", marker="o")
+        ax = sns.lineplot(data=df_perf, x="n", y="score", hue="type", marker="o")
         metric_name = metric_to_text[metric]
-        plt.title(f"Distance to target ({metric_name})")
-        plt.xlabel("$n$")
-        plt.ylabel("Expected distance to target")
+        plt.title(f"Distance between chosen image and target ({metric_name})", fontsize=16)
+        plt.xlabel("$n$", fontsize=14)
+        plt.ylabel("Average distance to target", fontsize=14)
+        # Remove the "type" title from the legend
+        ax.legend(title="", fontsize=12)
         plt.tight_layout()
         plt.savefig(output_dir / f"system_performance_{metric}.png", dpi=600)
         plt.close()
@@ -390,10 +410,12 @@ def plot_equilibria(metric, input_dir, output_dir, csv_path):
         
         plt.figure(figsize=(10, 6))
         bars = plt.bar(sorted_models, distances, color=colors)
-        plt.title(f"Average Distance per Model ({metric})")
-        plt.xlabel("Model")
-        plt.ylabel("Average Distance")
-        plt.xticks(rotation=45, ha='right')
+        plt.title(f"Average Distance per Model ({metric})", fontsize=16)
+        plt.xlabel("Model", fontsize=14)
+        plt.ylabel("Average Distance", fontsize=14)
+        # Format model names for display on x-axis
+        formatted_model_names = [format_model_name_for_display(model) for model in sorted_models]
+        plt.xticks(range(len(sorted_models)), formatted_model_names, rotation=45, ha='right', fontsize=12)
         
         # Set y-axis limits to make differences more visible (don't start at 0)
         if distances:

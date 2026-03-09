@@ -8,6 +8,12 @@ import matplotlib.patches as mpatches
 import pandas as pd
 from PIL import Image
 
+def format_model_name_for_display(model_name: str) -> str:
+    """Format model name for display in plots. Changes flux1.dev to FLUX.1-dev."""
+    if model_name == "flux1.dev":
+        return "FLUX.1-dev"
+    return model_name
+
 # Define a color palette for models
 MODEL_COLORS = [
     "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
@@ -189,7 +195,7 @@ def generate_plot(
 
     # Add Legend
     legend_patches = [
-        mpatches.Patch(color=color, label=model)
+        mpatches.Patch(color=color, label=format_model_name_for_display(model))
         for model, color in model_color_map.items()
     ]
     fig.legend(
