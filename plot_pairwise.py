@@ -17,7 +17,7 @@ SAVE = True
 def save_if_needed(fname: str, to_save: bool):
     if to_save:
         print('Saving to', fname)
-        plt.savefig(fname, dpi=300)
+        plt.savefig(fname, dpi=300, bbox_inches='tight')
         plt.clf()
     else:
         plt.show()

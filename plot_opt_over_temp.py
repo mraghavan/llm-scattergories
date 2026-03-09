@@ -64,7 +64,7 @@ def plot_opt_over_temp(
     if SAVE:
         fname = fm.locations.plots_dir / f'{model}_opt_over_temp.png'
         print('Saving to', fname)
-        plt.savefig(fname, dpi=300)
+        plt.savefig(fname, dpi=300, bbox_inches='tight')
         plt.clf()
     else:
         plt.show()

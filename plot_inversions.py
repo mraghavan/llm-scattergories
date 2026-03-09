@@ -70,6 +70,8 @@ def find_equivalance_classes(ranked_keys: list[str], ranked_vals: list[float]):
     return classes
 
 def total_variation_distance(l1: list[float] | np.ndarray, l2: list[float] | np.ndarray):
+    assert np.all(np.isfinite(l1))
+    assert np.all(np.isfinite(l2))
     return sum(abs(l1[i] - l2[i]) for i in range(len(l1)))/2
 
 def get_inversions(interpolators: dict[str, LinearInterpolater], temps: list[float]):
