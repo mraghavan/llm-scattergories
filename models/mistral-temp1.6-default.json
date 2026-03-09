@@ -1,0 +1,7 @@
+{
+  "id": "mistral-temp1.6-default",
+  "model": "mistral",
+  "temperature": 1.6,
+  "prompt_function": "default",
+  "description": "mistral with temperature 1.6 using default prompt"
+}

@@ -1,0 +1,7 @@
+{
+  "id": "nemotron-temp1.6-claude1",
+  "model": "nemotron",
+  "temperature": 1.65,
+  "prompt_function": "claude1",
+  "description": "nemotron with temperature 1.6 using claude1 prompt"
+}

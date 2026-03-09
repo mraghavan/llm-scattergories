@@ -1,0 +1,7 @@
+{
+  "id": "gemma2-temp1.6-default",
+  "model": "gemma2",
+  "temperature": 1.55,
+  "prompt_function": "default",
+  "description": "gemma2 with temperature 1.6 using default prompt"
+}

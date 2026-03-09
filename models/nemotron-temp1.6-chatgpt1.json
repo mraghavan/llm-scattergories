@@ -1,0 +1,7 @@
+{
+  "id": "nemotron-temp1.6-chatgpt1",
+  "model": "nemotron",
+  "temperature": 1.65,
+  "prompt_function": "chatgpt1",
+  "description": "nemotron with temperature 1.6 using chatgpt1 prompt"
+}

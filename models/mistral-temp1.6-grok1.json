@@ -1,0 +1,7 @@
+{
+  "id": "mistral-temp1.6-grok1",
+  "model": "mistral",
+  "temperature": 1.6,
+  "prompt_function": "grok1",
+  "description": "mistral with temperature 1.6 using grok1 prompt"
+}

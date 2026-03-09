@@ -1,0 +1,7 @@
+{
+  "id": "phi3.5-temp2.0-default",
+  "model": "phi3.5",
+  "temperature": 2.0,
+  "prompt_function": "default",
+  "description": "phi3.5 with temperature 2.0 using default prompt"
+}

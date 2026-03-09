@@ -1,0 +1,7 @@
+{
+  "id": "nemotron-temp1.6-deepseek2",
+  "model": "nemotron",
+  "temperature": 1.65,
+  "prompt_function": "deepseek2",
+  "description": "nemotron with temperature 1.6 using deepseek2 prompt"
+}

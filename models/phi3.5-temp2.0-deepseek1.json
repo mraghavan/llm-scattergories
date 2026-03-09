@@ -1,0 +1,7 @@
+{
+  "id": "phi3.5-temp2.0-deepseek1",
+  "model": "phi3.5",
+  "temperature": 2.0,
+  "prompt_function": "deepseek1",
+  "description": "phi3.5 with temperature 2.0 using deepseek1 prompt"
+}

@@ -1,0 +1,7 @@
+{
+  "id": "phi3.5-temp2.0-grok1",
+  "model": "phi3.5",
+  "temperature": 2.0,
+  "prompt_function": "grok1",
+  "description": "phi3.5 with temperature 2.0 using grok1 prompt"
+}
