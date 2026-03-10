@@ -7,7 +7,8 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=10G
 #SBATCH --gres=gpu:1
-#SBATCH --partition=cpu-gpu-rtx8000
+#SBATCH --partition=cpu-gpu-v100
+#SBATCH --nodelist=node5,node6,node7,node9,node12,node13
 #SBATCH --array=0-10%4
 
 # Check if min_count argument is provided
@@ -19,4 +20,4 @@ fi
 
 export HF_TOKEN=$(cat ~/.HF_TOKEN)
 
-time python3 evaluate_answer_likelihoods.py --job-num $SLURM_ARRAY_TASK_ID --num-jobs $SLURM_ARRAY_TASK_COUNT --min-count $1 -n 5
+time python3 evaluate_answer_likelihoods.py --job-num $SLURM_ARRAY_TASK_ID --num-jobs $SLURM_ARRAY_TASK_COUNT --min-count $1 -n 10

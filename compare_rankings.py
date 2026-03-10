@@ -11,6 +11,7 @@ from sklearn.manifold import SpectralEmbedding
 from l1_isotonic import isotonic_regression_l1_total_order
 from plot_inversions import total_variation_distance
 from scipy.optimize import linear_sum_assignment
+import pickle
 
 def load_all_rankings(fm: FileManager, letter: str, category: str, min_count: int) -> dict:
     """
@@ -83,7 +84,12 @@ def get_similarity_matrix_gaussian(distance_matrix: np.ndarray):
     sigma = 1.0
     return np.exp(-distance_matrix**2 / (2 * sigma**2))
 
-def cluster_rankings_weighted(distance_matrix: np.ndarray, model_names: list[str], num_clusters: int):
+def cluster_rankings_weighted(
+        distance_matrix: np.ndarray,
+        model_names: list[str],
+        num_clusters: int,
+        make_plots: bool=True,
+        ):
     # Add edges with weights (using similarity instead of distance)
     sigma = 1.0
     similarity_matrix = np.exp(-distance_matrix / (2 * sigma**2))
@@ -104,6 +110,14 @@ def cluster_rankings_weighted(distance_matrix: np.ndarray, model_names: list[str
                              affinity='precomputed',
                              random_state=0)
     node_positions_3d = embedder_3d.fit_transform(similarity_matrix)
+
+    if not make_plots:
+        return {
+                'labels': labels,
+                'similarity_matrix': similarity_matrix,
+                'embedding_2d': node_positions_2d,
+                'embedding_3d': node_positions_3d,
+                }
 
     # Get unique model names and assign markers sequentially
     unique_models = sorted(set(name.split('-')[0] for name in model_names))
@@ -180,40 +194,48 @@ def cluster_rankings_weighted(distance_matrix: np.ndarray, model_names: list[str
     plt.tight_layout()
     fig2.savefig('img/spectral_embedding_2d.png', dpi=300, bbox_inches='tight')
     
-    # Create third figure for 3D spectral embedding
-    fig3 = plt.figure(figsize=(10, 8))
-    ax3 = fig3.add_subplot(111, projection='3d')
-    
-    # 3. Plot 3D spectral embedding
-    for i, (x, y, z) in enumerate(node_positions_3d):
-        ax3.scatter(x, y, z,
-                   marker=markers[i],
-                   color=cmap(labels[i]),
-                   s=100)
-    
-    # Add legend for models (markers)
-    model_handles = [plt.Line2D([0], [0], marker=marker, color='gray',
-                               markerfacecolor='gray', markersize=8,
-                               label=model)
-                    for model, marker in marker_map.items()]
-    
-    ax3.legend(handles=model_handles,
-              title='Models',
-              bbox_to_anchor=(1.05, 1),
-              loc='upper left')
-    
-    ax3.set_title('3D Spectral Embedding')
-    ax3.set_xticks([])
-    ax3.set_yticks([])
-    ax3.set_zticks([])
-    
-    # Set initial view angle
-    ax3.view_init(elev=20, azim=45)
-    
-    plt.tight_layout()
-    fig3.savefig('img/spectral_embedding_3d.png', dpi=300, bbox_inches='tight')
+    try:
+        from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
+        fig3 = plt.figure(figsize=(10, 8))
+        ax3 = fig3.add_subplot(111, projection='3d')
+        
+        # 3. Plot 3D spectral embedding
+        for i, (x, y, z) in enumerate(node_positions_3d):
+            ax3.scatter(x, y, z,
+                       marker=markers[i],
+                       color=cmap(labels[i]),
+                       s=100)
+        
+        # Add legend for models (markers)
+        model_handles = [plt.Line2D([0], [0], marker=marker, color='gray',
+                                   markerfacecolor='gray', markersize=8,
+                                   label=model)
+                        for model, marker in marker_map.items()]
+        
+        ax3.legend(handles=model_handles,
+                  title='Models',
+                  bbox_to_anchor=(1.05, 1),
+                  loc='upper left')
+        
+        ax3.set_title('3D Spectral Embedding')
+        ax3.set_xticks([])
+        ax3.set_yticks([])
+        ax3.set_zticks([])
+        
+        # Set initial view angle
+        ax3.view_init(elev=20, azim=45)
+        
+        plt.tight_layout()
+        fig3.savefig('img/spectral_embedding_3d.png', dpi=300, bbox_inches='tight')
+    except Exception as exc:
+        print(f"Skipping 3D plot: {exc}")
 
-    return labels
+    return {
+            'labels': labels,
+            'similarity_matrix': similarity_matrix,
+            'embedding_2d': node_positions_2d,
+            'embedding_3d': node_positions_3d,
+            }
 
 def get_weighted_inversions(d1: dict[int, float], d2: dict[int, float]) -> float:
     # get the ranking of d1
@@ -241,7 +263,12 @@ def get_weighted_inversions2(d1: dict[int, float], d2: dict[int, float]) -> floa
     
     return total
 
-def evaluate_cluster(labels: list[int], true_labels: list[str], base_ids: list[str]) -> float:
+def evaluate_cluster(
+        labels: list[int],
+        true_labels: list[str],
+        base_ids: list[str],
+        make_plot: bool=True,
+        ):
     """
     Calculate the accuracy of the clustering by finding the best possible mapping
     between predicted and true labels, allowing many-to-one mapping.
@@ -280,27 +307,26 @@ def evaluate_cluster(labels: list[int], true_labels: list[str], base_ids: list[s
     final_confusion = confusion_alpha[row_ind[sort_order], :]
     cluster_names = [f'Cluster {i+1}' for i in range(final_confusion.shape[0])]
 
-    # Plot
-    plt.figure(figsize=(10, 8))
-    plt.imshow(final_confusion, cmap='Blues')
-    plt.colorbar(label='Count')
-    plt.xticks(range(len(sorted_true_labels)), sorted_true_labels, rotation=45, ha='right')
-    plt.yticks(range(len(cluster_names)), cluster_names)
-    plt.xlabel('True Model')
-    plt.ylabel('Predicted Cluster')
-    plt.title('Confusion Matrix')
+    if make_plot:
+        plt.figure(figsize=(10, 8))
+        plt.imshow(final_confusion, cmap='Blues')
+        plt.colorbar(label='Count')
+        plt.xticks(range(len(sorted_true_labels)), sorted_true_labels, rotation=45, ha='right')
+        plt.yticks(range(len(cluster_names)), cluster_names)
+        plt.xlabel('True Model')
+        plt.ylabel('Predicted Cluster')
+        plt.title('Confusion Matrix')
 
-    # Add text annotations
-    for i in range(final_confusion.shape[0]):
-        for j in range(final_confusion.shape[1]):
-            plt.text(j, i, str(final_confusion[i, j]),
-                     ha='center', va='center',
-                     color='white' if final_confusion[i, j] > final_confusion.max()/2 else 'black')
+        # Add text annotations
+        for i in range(final_confusion.shape[0]):
+            for j in range(final_confusion.shape[1]):
+                plt.text(j, i, str(final_confusion[i, j]),
+                         ha='center', va='center',
+                         color='white' if final_confusion[i, j] > final_confusion.max()/2 else 'black')
 
-    plt.tight_layout()
-    plt.savefig('img/confusion_matrix.png', dpi=300, bbox_inches='tight')
-    plt.show()
-    
+        plt.tight_layout()
+        plt.savefig('img/confusion_matrix.png', dpi=300, bbox_inches='tight')
+
     # Calculate accuracy
     correct = sum(final_confusion[i, i] for i in range(min(final_confusion.shape)))
     # For each predicted cluster, find the true label with most items
@@ -326,7 +352,7 @@ def evaluate_cluster(labels: list[int], true_labels: list[str], base_ids: list[s
     correct = sum(correct_count for _, _, _, correct_count in assignments)
     total = len(labels)
     
-    return correct / total
+    return correct / total, final_confusion, sorted_true_labels, cluster_names
 
 def main():
     parser = argparse.ArgumentParser(description='Compare rankings across different models')
@@ -334,6 +360,10 @@ def main():
                       help='Number of instances to analyze (default: 1)')
     parser.add_argument('--min-count', type=int, default=100,
                       help='Minimum count threshold for including an answer (default: 100)')
+    parser.add_argument('--no-plots', action='store_true', default=False,
+                      help='Compute clustering outputs without generating plots')
+    parser.add_argument('--output-pkl', type=str, default='info/compare_rankings_results.pkl',
+                      help='Path to write clustering outputs for downstream local plotting')
     args = parser.parse_args()
 
     # Initialize FileManager
@@ -412,10 +442,41 @@ def main():
     # num_cluster_list = list(range(len(unique_model_names), len(unique_model_names)+1))
     # accuracy_list = []
     # for num_clusters in num_cluster_list:
-    labels = cluster_rankings_weighted(avg_distance_matrix, model_names, num_clusters=len(set(model_names)))
+    cluster_results = cluster_rankings_weighted(
+            avg_distance_matrix,
+            model_names,
+            num_clusters=len(set(model_names)),
+            make_plots=not args.no_plots,
+            )
+    labels = cluster_results['labels']
     assert len(labels) == len(all_valid_model_ids)
-    accuracy = evaluate_cluster(labels, model_names, sorted_all_valid_model_ids)
+    accuracy, confusion_matrix, true_label_names, cluster_names = evaluate_cluster(
+            labels,
+            model_names,
+            sorted_all_valid_model_ids,
+            make_plot=not args.no_plots,
+            )
     print(f"Accuracy: {accuracy}")
+    output_path = Path(args.output_pkl)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, 'wb') as f:
+        pickle.dump({
+            'distance_matrices': distance_matrices,
+            'avg_distance_matrix': avg_distance_matrix,
+            'model_ids': sorted_all_valid_model_ids,
+            'model_names': model_names,
+            'labels': labels,
+            'accuracy': accuracy,
+            'confusion_matrix': confusion_matrix,
+            'true_label_names': true_label_names,
+            'cluster_names': cluster_names,
+            'embedding_2d': cluster_results['embedding_2d'],
+            'embedding_3d': cluster_results['embedding_3d'],
+            'similarity_matrix': cluster_results['similarity_matrix'],
+            'num_instances': args.num_instances,
+            'min_count': args.min_count,
+        }, f)
+    print(f"Wrote clustering outputs to {output_path}")
     # accuracy_list.append(accuracy)
     # plt.plot(num_cluster_list, accuracy_list)
     # plt.show()

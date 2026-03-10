@@ -347,15 +347,38 @@ class FileManager:
         
         data = []
         for fname in all_rankings:
-            parts = fname.stem.split('_')
-            if len(parts) >= 4:  # Now expecting at least 4 parts due to min_count
-                data.append({
-                    'letter': parts[0],
-                    'category': parts[1],
-                    'model': parts[2],
-                    'min_count': int(parts[3].replace('min', '')),
-                    'fname': fname
-                })
+            stem = fname.stem
+            if not stem.endswith('_rankings'):
+                continue
+            stem = stem[:-len('_rankings')]
+            min_marker = '_min'
+            min_idx = stem.rfind(min_marker)
+            if min_idx == -1:
+                continue
+            prefix = stem[:min_idx]
+            min_count_str = stem[min_idx + len(min_marker):]
+            try:
+                parsed_min_count = int(min_count_str)
+            except ValueError:
+                continue
+            if '_' not in prefix:
+                continue
+            parsed_letter, remainder = prefix.split('_', 1)
+            parsed_category = ''
+            parsed_model = remainder
+            if category:
+                category_prefix = f'{category}_'
+                if not remainder.startswith(category_prefix):
+                    continue
+                parsed_category = category
+                parsed_model = remainder[len(category_prefix):]
+            data.append({
+                'letter': parsed_letter,
+                'category': parsed_category,
+                'model': parsed_model,
+                'min_count': parsed_min_count,
+                'fname': fname
+            })
         
         return pd.DataFrame(data)
 
@@ -377,7 +400,12 @@ class FileManager:
         
         results = []
         for ranking_file in rankings_dir.glob(pattern):
-            model_name = ranking_file.stem.split('_')[-3]  # Adjusted index due to min_count
+            prefix = f"{letter}_{category}_"
+            suffix = f"_min{min_count}_rankings"
+            stem = ranking_file.stem
+            if not stem.startswith(prefix) or not stem.endswith(suffix):
+                continue
+            model_name = stem[len(prefix):-len(suffix)]
             results.append((model_name, ranking_file))
         
         return results
