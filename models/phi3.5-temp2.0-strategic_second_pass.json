@@ -1,0 +1,7 @@
+{
+  "id": "phi3.5-temp2.0-strategic_second_pass",
+  "model": "phi3.5",
+  "temperature": 2.0,
+  "prompt_function": "strategic_second_pass",
+  "description": "phi3.5 with temperature 2.0 using strategic_second_pass prompt"
+}

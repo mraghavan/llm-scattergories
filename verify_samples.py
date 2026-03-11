@@ -3,6 +3,7 @@ import re
 import os
 import pickle
 from pathlib import Path
+import json
 from verifier import Verifier
 import argparse
 from scat_utils import MAX_TEMPS, get_model_list
@@ -37,13 +38,21 @@ if __name__ == '__main__':
     fm = FileManager.from_args(samples_dir=args.input_dir)
     
     if args.from_config:
-        # Load all configs from directory
-        configs_df = fm.get_all_model_configs()
-        if configs_df.empty:
-            raise ValueError(f"No configs found in {fm.locations.models_dir}")
+        config_path = Path(args.from_config)
+        if not config_path.exists():
+            raise ValueError(f"Config path does not exist: {args.from_config}")
+        configs = []
+        if config_path.is_file():
+            with open(config_path, 'r') as f:
+                configs.append(json.load(f))
+        else:
+            for fname in sorted(config_path.glob("*.json")):
+                with open(fname, 'r') as f:
+                    configs.append(json.load(f))
+        if not configs:
+            raise ValueError(f"No configs found in {config_path}")
         models = []
-        for _, row in configs_df.iterrows():
-            config = row.to_dict()
+        for config in configs:
             nickname = config['model']
             model_id = config['id']
             models.append((nickname, model_id))

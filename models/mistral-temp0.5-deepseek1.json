@@ -1,0 +1,7 @@
+{
+  "id": "mistral-temp0.5-deepseek1",
+  "model": "mistral",
+  "temperature": 0.53,
+  "prompt_function": "deepseek1",
+  "description": "mistral with temperature 0.5 using deepseek1 prompt"
+}

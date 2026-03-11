@@ -1,0 +1,7 @@
+{
+  "id": "mistral-temp1.1-chatgpt1",
+  "model": "mistral",
+  "temperature": 1.07,
+  "prompt_function": "chatgpt1",
+  "description": "mistral with temperature 1.1 using chatgpt1 prompt"
+}

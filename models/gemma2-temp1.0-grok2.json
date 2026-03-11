@@ -1,0 +1,7 @@
+{
+  "id": "gemma2-temp1.0-grok2",
+  "model": "gemma2",
+  "temperature": 1.03,
+  "prompt_function": "grok2",
+  "description": "gemma2 with temperature 1.0 using grok2 prompt"
+}

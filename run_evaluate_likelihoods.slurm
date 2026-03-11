@@ -20,4 +20,4 @@ fi
 
 export HF_TOKEN=$(cat ~/.HF_TOKEN)
 
-time python3 evaluate_answer_likelihoods.py --job-num $SLURM_ARRAY_TASK_ID --num-jobs $SLURM_ARRAY_TASK_COUNT --min-count $1 -n 10
+time python3 evaluate_answer_likelihoods.py --job-num $SLURM_ARRAY_TASK_ID --num-jobs $SLURM_ARRAY_TASK_COUNT --min-count $1 -n 15

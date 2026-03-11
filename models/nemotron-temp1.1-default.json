@@ -1,0 +1,7 @@
+{
+  "id": "nemotron-temp1.1-default",
+  "model": "nemotron",
+  "temperature": 1.1,
+  "prompt_function": "default",
+  "description": "nemotron with temperature 1.1 using default prompt"
+}

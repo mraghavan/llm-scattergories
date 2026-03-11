@@ -8,14 +8,27 @@ from make_model_configs import PROMPT_REGISTRY
 import argparse
 import random
 import gc
+import json
 
-def load_model_configs() -> pd.DataFrame:
+def load_model_configs(from_config: str = '') -> pd.DataFrame:
     """
     Load all model configurations from the models directory.
     
     Returns:
         DataFrame containing all model configurations
     """
+    if from_config:
+        config_path = Path(from_config)
+        if not config_path.exists():
+            raise ValueError(f"Config path does not exist: {from_config}")
+        if config_path.is_file():
+            with open(config_path, 'r') as f:
+                return pd.DataFrame([json.load(f)])
+        configs = []
+        for fname in sorted(config_path.glob("*.json")):
+            with open(fname, 'r') as f:
+                configs.append(json.load(f))
+        return pd.DataFrame(configs)
     fm = FileManager.from_base(Path('./'))
     return fm.get_all_model_configs()
 
@@ -106,8 +119,11 @@ def compute_answer_nll(prompt: str, answer: str, completion_engine: CompletionEn
         probs = np.exp(logits - np.max(logits))  # Subtract max for numerical stability
         probs = probs / np.sum(probs)
         
-        # Get probability of current token
+        # Get probability of current token. If the token is impossible under the
+        # model distribution, treat the full answer as zero-probability.
         token_prob = probs[token]
+        if not np.isfinite(token_prob) or token_prob <= 0:
+            return np.inf
         
         # Add to total log probability
         total_log_prob += np.log(token_prob)
@@ -116,6 +132,8 @@ def compute_answer_nll(prompt: str, answer: str, completion_engine: CompletionEn
         current_input.append(token)
     
     # Return negative log likelihood
+    if not np.isfinite(total_log_prob):
+        return np.inf
     return -total_log_prob
 
 def get_all_jobs(model_configs, instances):
@@ -209,13 +227,15 @@ def main():
                       help='Total number of jobs (default: 1)')
     parser.add_argument('--num-instances', '-n', type=int, default=1,
                       help='Number of instances to evaluate (default: 1)')
+    parser.add_argument('--from-config', '-c', type=str, default='',
+                      help='Load model configs from a JSON file or directory (default: models dir)')
     args = parser.parse_args()
 
     # Initialize FileManager
     fm = FileManager.from_base(Path('./'))
     
     # Load all model configurations
-    model_configs = load_model_configs()
+    model_configs = load_model_configs(args.from_config)
     print(f"Loaded {len(model_configs)} model configurations")
     
     # Get deterministic instances

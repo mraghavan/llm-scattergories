@@ -1,0 +1,7 @@
+{
+  "id": "phi3.5-temp0.7-claude1",
+  "model": "phi3.5",
+  "temperature": 0.67,
+  "prompt_function": "claude1",
+  "description": "phi3.5 with temperature 0.7 using claude1 prompt"
+}

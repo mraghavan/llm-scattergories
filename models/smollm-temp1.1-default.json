@@ -1,7 +1,0 @@
-{
-  "id": "smollm-temp1.1-default",
-  "model": "smollm",
-  "temperature": 1.1,
-  "prompt_function": "default",
-  "description": "smollm with temperature 1.1 using default prompt"
-}

@@ -1,0 +1,7 @@
+{
+  "id": "mistral-temp0.5-claude2",
+  "model": "mistral",
+  "temperature": 0.53,
+  "prompt_function": "claude2",
+  "description": "mistral with temperature 0.5 using claude2 prompt"
+}

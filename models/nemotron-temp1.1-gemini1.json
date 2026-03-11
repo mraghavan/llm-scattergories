@@ -1,0 +1,7 @@
+{
+  "id": "nemotron-temp1.1-gemini1",
+  "model": "nemotron",
+  "temperature": 1.1,
+  "prompt_function": "gemini1",
+  "description": "nemotron with temperature 1.1 using gemini1 prompt"
+}

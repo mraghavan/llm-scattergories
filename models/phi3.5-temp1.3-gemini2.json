@@ -1,0 +1,7 @@
+{
+  "id": "phi3.5-temp1.3-gemini2",
+  "model": "phi3.5",
+  "temperature": 1.33,
+  "prompt_function": "gemini2",
+  "description": "phi3.5 with temperature 1.3 using gemini2 prompt"
+}

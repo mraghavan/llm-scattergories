@@ -1,0 +1,7 @@
+{
+  "id": "gemma2-temp1.0-claude2",
+  "model": "gemma2",
+  "temperature": 1.03,
+  "prompt_function": "claude2",
+  "description": "gemma2 with temperature 1.0 using claude2 prompt"
+}

@@ -7,6 +7,8 @@ import torch
 import os
 import pickle
 import random
+import json
+from pathlib import Path
 from collections import Counter
 from completion_base import CompletionEngine, softmax_temperature, softmax_temperature_2d
 from scat_utils import get_scat_prompt, get_deterministic_instances, standardize_str
@@ -105,6 +107,7 @@ def generate_samples(
         category: str,
         temperature: float,
         num_samples: int,
+        prompt: str,
         cache: dict[tuple, SortedLogitsAndTokens] | None=None,
         existing_info: dict | None=None,
         max_tokens: int=6,
@@ -112,7 +115,6 @@ def generate_samples(
         top_p: float = 0.95,
         ) -> dict:
     allowed_tokens, allowed_starting_tokens = engine.get_allowed_tokens(letter)
-    prompt = get_scat_prompt(letter, category, engine.tokenizer)
     tokenized_prompt = engine.encode_prompt(prompt)
 
     if cache is None:
@@ -237,13 +239,21 @@ if __name__ == '__main__':
     
     model_configs = []
     if args.from_config:
-        # Load all configs from directory
-        configs_df = fm.get_all_model_configs()
-        if configs_df.empty:
-            raise ValueError(f"No configs found in {fm.locations.models_dir}")
+        config_path = Path(args.from_config)
+        if not config_path.exists():
+            raise ValueError(f"Config path does not exist: {args.from_config}")
+        if config_path.is_file():
+            with open(config_path, 'r') as f:
+                configs = [json.load(f)]
+        else:
+            configs = []
+            for fname in sorted(config_path.glob("*.json")):
+                with open(fname, 'r') as f:
+                    configs.append(json.load(f))
+        if not configs:
+            raise ValueError(f"No configs found in {config_path}")
             
-        for _, row in configs_df.iterrows():
-            config = row.to_dict()
+        for config in configs:
             # Create a prompt function specific to this config
             prompt_fn = get_prompt_fn_from_name(config['prompt_function'])
             nickname = config['model']
@@ -266,6 +276,7 @@ if __name__ == '__main__':
     prev_nickname = None
     prev_max_temperature = None
     prev_engine = None
+    engine = None
     for (nickname, temps, model_id, prompt_fn), instance in all_jobs:
         print(f'Running job {model_id} on instance {instance}')
         model_name = MODELS[nickname]
@@ -273,8 +284,9 @@ if __name__ == '__main__':
         max_temperature = max(temps)
             
         if nickname != prev_nickname or max_temperature != prev_max_temperature:
-            if prev_engine is not None:
-                del prev_engine
+            if engine is not None:
+                del engine
+                prev_engine = None
                 gc.collect()
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
@@ -303,7 +315,7 @@ if __name__ == '__main__':
                 continue
             prompt = prompt_fn(letter, category, engine.tokenizer)
             start = time.time()
-            info = generate_samples(engine, letter, category, temp, args.num_samples, batch_size = args.batch_size, cache=cache, existing_info=existing_info)
+            info = generate_samples(engine, letter, category, temp, args.num_samples, prompt, batch_size = args.batch_size, cache=cache, existing_info=existing_info)
             elapsed = time.time() - start
             print(f'Elapsed time: {elapsed:.2f}')
             fm.write_samples(letter, category, model_id, temp, info)

@@ -1,0 +1,7 @@
+{
+  "id": "mistral-temp1.6-strategic_unique",
+  "model": "mistral",
+  "temperature": 1.6,
+  "prompt_function": "strategic_unique",
+  "description": "mistral with temperature 1.6 using strategic_unique prompt"
+}

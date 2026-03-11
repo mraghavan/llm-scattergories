@@ -1,0 +1,7 @@
+{
+  "id": "llama3.2-temp0.9-claude2",
+  "model": "llama3.2",
+  "temperature": 0.87,
+  "prompt_function": "claude2",
+  "description": "llama3.2 with temperature 0.9 using claude2 prompt"
+}

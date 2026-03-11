@@ -119,6 +119,9 @@ def cluster_rankings_weighted(
                 'embedding_3d': node_positions_3d,
                 }
 
+    img_dir = Path('img')
+    img_dir.mkdir(parents=True, exist_ok=True)
+
     # Get unique model names and assign markers sequentially
     unique_models = sorted(set(name.split('-')[0] for name in model_names))
     marker_styles = ['o', 's', '^', 'D', 'v', '*', 'p', 'h', 'X', 'd', '>', '<', 'P']
@@ -157,7 +160,7 @@ def cluster_rankings_weighted(
     
     plt.colorbar(im, ax=ax1)
     plt.tight_layout()
-    fig1.savefig('img/distance_matrix.png', dpi=300, bbox_inches='tight')
+    fig1.savefig(img_dir / 'distance_matrix.png', dpi=300, bbox_inches='tight')
 
     # Create second figure for 2D spectral embedding
     fig2 = plt.figure(figsize=(7, 6))
@@ -192,7 +195,7 @@ def cluster_rankings_weighted(
     ax2.set_yticks([])
 
     plt.tight_layout()
-    fig2.savefig('img/spectral_embedding_2d.png', dpi=300, bbox_inches='tight')
+    fig2.savefig(img_dir / 'spectral_embedding_2d.png', dpi=300, bbox_inches='tight')
     
     try:
         from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
@@ -226,7 +229,7 @@ def cluster_rankings_weighted(
         ax3.view_init(elev=20, azim=45)
         
         plt.tight_layout()
-        fig3.savefig('img/spectral_embedding_3d.png', dpi=300, bbox_inches='tight')
+        fig3.savefig(img_dir / 'spectral_embedding_3d.png', dpi=300, bbox_inches='tight')
     except Exception as exc:
         print(f"Skipping 3D plot: {exc}")
 
@@ -308,6 +311,8 @@ def evaluate_cluster(
     cluster_names = [f'Cluster {i+1}' for i in range(final_confusion.shape[0])]
 
     if make_plot:
+        img_dir = Path('img')
+        img_dir.mkdir(parents=True, exist_ok=True)
         plt.figure(figsize=(10, 8))
         plt.imshow(final_confusion, cmap='Blues')
         plt.colorbar(label='Count')
@@ -325,7 +330,7 @@ def evaluate_cluster(
                          color='white' if final_confusion[i, j] > final_confusion.max()/2 else 'black')
 
         plt.tight_layout()
-        plt.savefig('img/confusion_matrix.png', dpi=300, bbox_inches='tight')
+        plt.savefig(img_dir / 'confusion_matrix.png', dpi=300, bbox_inches='tight')
 
     # Calculate accuracy
     correct = sum(final_confusion[i, i] for i in range(min(final_confusion.shape)))
@@ -418,21 +423,29 @@ def main():
             # Convert NLLs to log probabilities (multiply by -1)
             if model_id not in all_valid_model_ids:
                 continue
-            log_probs = np.array([-nll for nll in model_rankings.values()])
-            # Apply softmax to get valid probability distribution
-            probs = np.exp(log_probs - np.max(log_probs))  # Subtract max for numerical stability
-            probs[np.isnan(probs)] = 0
-            probs[np.isinf(probs)] = 0
+            nlls = np.array(list(model_rankings.values()), dtype=float)
+            finite_mask = np.isfinite(nlls)
+            probs = np.zeros_like(nlls)
+            if np.any(finite_mask):
+                log_probs = -nlls[finite_mask]
+                finite_probs = np.exp(log_probs - np.max(log_probs))
+                finite_probs[~np.isfinite(finite_probs)] = 0
+                if np.sum(finite_probs) > 0:
+                    probs[finite_mask] = finite_probs / np.sum(finite_probs)
             assert np.all(probs >= 0)
-            assert np.sum(probs) > 0
-            probs = probs / np.sum(probs)
-            assert np.all(np.isfinite(probs))
             # Create dictionary mapping answer IDs to probabilities
             rankings_dict[model_id] = {answer_to_id[answer]: prob 
                                      for answer, prob in zip(model_rankings.keys(), probs)}
             # print out the 2 highest probability answers for each model
-            sorted_probs = sorted(probs, reverse=True)
-            print(f"{model_id}: {id_to_answer[np.argmax(probs)]} ({sorted_probs[0]:.2f}), {id_to_answer[np.argmax(probs[1])]} ({sorted_probs[1]:.2f})")
+            top_ids = np.argsort(probs)[::-1][:2]
+            if len(top_ids) == 1:
+                print(f"{model_id}: {id_to_answer[top_ids[0]]} ({probs[top_ids[0]]:.2f})")
+            else:
+                print(
+                    f"{model_id}: "
+                    f"{id_to_answer[top_ids[0]]} ({probs[top_ids[0]]:.2f}), "
+                    f"{id_to_answer[top_ids[1]]} ({probs[top_ids[1]]:.2f})"
+                )
         distance_matrix = get_distance_matrix(rankings_dict)
         distance_matrices.append(distance_matrix)
         assert np.all(np.isfinite(distance_matrix))

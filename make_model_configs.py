@@ -9,6 +9,15 @@ from transformers import PreTrainedTokenizer
 from scat_utils import get_scat_prompt, MAX_TEMPS
 from completion_hf import MODELS
 
+CANONICAL_MODELS = [
+    "llama3.1",
+    "llama3.2",
+    "gemma2",
+    "phi3.5",
+    "mistral",
+    "nemotron",
+]
+
 # Define our own temperature grid parameters
 EPS_GRID = 0.2  # This will create temperatures spaced 0.1 apart
 
@@ -23,6 +32,18 @@ ALL_EXAMPLES = [
     ("Letter: T\nCategory: Things you can eat for breakfast", "Toast"),
     ("Letter: F\nCategory: Famous people", "Franklin"),
     ("Letter: D\nCategory: Hobbies", "Drawing"),
+]
+
+STRATEGIC_COMMON_EXAMPLES = [
+    ("Letter: C\nCategory: Countries", "Canada"),
+    ("Letter: V\nCategory: Instruments", "Violin"),
+    ("Letter: H\nCategory: Hobbies", "Hiking"),
+]
+
+STRATEGIC_UNIQUE_EXAMPLES = [
+    ("Letter: C\nCategory: Countries", "Comoros"),
+    ("Letter: V\nCategory: Instruments", "Vibraphone"),
+    ("Letter: H\nCategory: Hobbies", "Herpetology"),
 ]
 
 # Create a registry for prompt functions
@@ -165,6 +186,89 @@ def deepseek2_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer)
     messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
     return apply_template(messages, tokenizer)
 
+@register_prompt("strategic_unique")
+def strategic_unique_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are playing Scattergories competitively. "
+                "Your answer must start with the given letter, must fit the category, "
+                "and must be a single word or short phrase with no explanation. "
+                "Choose a valid answer that other players are less likely to choose."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                "We are playing Scattergories. I will give you a letter and a category. "
+                "Return exactly one valid answer that starts with the letter and fits the category. "
+                "Prefer an uncommon but still clearly valid answer."
+            ),
+        },
+        {"role": "assistant", "content": "Understood."},
+    ]
+    for q, a in STRATEGIC_UNIQUE_EXAMPLES:
+        messages.append({"role": "user", "content": q})
+        messages.append({"role": "assistant", "content": a})
+    messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
+    return apply_template(messages, tokenizer)
+
+@register_prompt("strategic_specific")
+def strategic_specific_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are playing Scattergories competitively. "
+                "Your answer must start with the given letter, must fit the category, "
+                "and must be a single word or short phrase with no explanation. "
+                "Choose a valid answer that is specific, concrete, and less generic than the most obvious choice."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                "I will give you a letter and a category. "
+                "Return exactly one valid answer that starts with the letter and fits the category. "
+                "Prefer a specific answer over a broad or generic one."
+            ),
+        },
+        {"role": "assistant", "content": "Ready."},
+    ]
+    for q, a in STRATEGIC_UNIQUE_EXAMPLES:
+        messages.append({"role": "user", "content": q})
+        messages.append({"role": "assistant", "content": a})
+    messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
+    return apply_template(messages, tokenizer)
+
+@register_prompt("strategic_second_pass")
+def strategic_second_pass_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are playing Scattergories competitively. "
+                "Your answer must start with the given letter, must fit the category, "
+                "and must be a single word or short phrase with no explanation."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                "Imagine your first answer was the most obvious valid answer. "
+                "Now give the best second answer instead. "
+                "Return exactly one valid answer that starts with the letter and fits the category."
+            ),
+        },
+        {"role": "assistant", "content": "Got it."},
+    ]
+    for q, a in STRATEGIC_COMMON_EXAMPLES:
+        messages.append({"role": "user", "content": q})
+        messages.append({"role": "assistant", "content": a})
+    messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
+    return apply_template(messages, tokenizer)
+
 
 def apply_template(messages: List[Dict[str, str]], tokenizer: PreTrainedTokenizer) -> str:
     try:
@@ -272,7 +376,7 @@ def main():
     args = parser.parse_args()
 
     # Use models from completion_hf
-    models = list(MODELS.keys())
+    models = [model for model in CANONICAL_MODELS if model in MODELS]
     
     # Create temp ranges using MAX_TEMPS from scat_utils
     temp_ranges = {

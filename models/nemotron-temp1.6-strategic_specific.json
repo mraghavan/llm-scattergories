@@ -1,0 +1,7 @@
+{
+  "id": "nemotron-temp1.6-strategic_specific",
+  "model": "nemotron",
+  "temperature": 1.65,
+  "prompt_function": "strategic_specific",
+  "description": "nemotron with temperature 1.6 using strategic_specific prompt"
+}

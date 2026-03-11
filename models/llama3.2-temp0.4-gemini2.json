@@ -1,0 +1,7 @@
+{
+  "id": "llama3.2-temp0.4-gemini2",
+  "model": "llama3.2",
+  "temperature": 0.43,
+  "prompt_function": "gemini2",
+  "description": "llama3.2 with temperature 0.4 using gemini2 prompt"
+}

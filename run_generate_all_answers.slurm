@@ -8,8 +8,9 @@
 #SBATCH --mem=10G
 #SBATCH --gres=gpu:1
 #SBATCH --partition=cpu-gpu-v100
+#SBATCH --nodelist=node5,node6,node7,node9,node12,node13
 #SBATCH --array=0-10%4
 
 export HF_TOKEN=$(cat ~/.HF_TOKEN)
 
-time python3 generate_samples.py -c models -n 5 -s 50 -b 6 -o out --no-cache -j $SLURM_ARRAY_TASK_ID -t $SLURM_ARRAY_TASK_COUNT
+time python3 generate_samples.py -c models -n 15 -s 50 -b 6 -o out --no-cache -j $SLURM_ARRAY_TASK_ID -t $SLURM_ARRAY_TASK_COUNT

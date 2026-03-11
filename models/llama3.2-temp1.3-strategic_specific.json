@@ -1,0 +1,7 @@
+{
+  "id": "llama3.2-temp1.3-strategic_specific",
+  "model": "llama3.2",
+  "temperature": 1.3,
+  "prompt_function": "strategic_specific",
+  "description": "llama3.2 with temperature 1.3 using strategic_specific prompt"
+}

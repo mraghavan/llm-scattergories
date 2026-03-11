@@ -1,0 +1,7 @@
+{
+  "id": "llama3.2-temp0.4-strategic_second_pass",
+  "model": "llama3.2",
+  "temperature": 0.43,
+  "prompt_function": "strategic_second_pass",
+  "description": "llama3.2 with temperature 0.4 using strategic_second_pass prompt"
+}

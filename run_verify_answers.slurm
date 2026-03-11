@@ -8,6 +8,7 @@
 #SBATCH --mem=10G
 #SBATCH --gres=gpu:1
 #SBATCH --partition=cpu-gpu-v100
+#SBATCH --nodelist=node5,node6,node7,node9,node12,node13
 
 export HF_TOKEN=$(cat ~/.HF_TOKEN)
 

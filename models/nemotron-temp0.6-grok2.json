@@ -1,0 +1,7 @@
+{
+  "id": "nemotron-temp0.6-grok2",
+  "model": "nemotron",
+  "temperature": 0.55,
+  "prompt_function": "grok2",
+  "description": "nemotron with temperature 0.6 using grok2 prompt"
+}

@@ -1,0 +1,7 @@
+{
+  "id": "mistral-temp1.1-strategic_second_pass",
+  "model": "mistral",
+  "temperature": 1.07,
+  "prompt_function": "strategic_second_pass",
+  "description": "mistral with temperature 1.1 using strategic_second_pass prompt"
+}

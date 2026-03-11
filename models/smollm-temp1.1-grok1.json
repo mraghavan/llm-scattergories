@@ -1,7 +1,0 @@
-{
-  "id": "smollm-temp1.1-grok1",
-  "model": "smollm",
-  "temperature": 1.1,
-  "prompt_function": "grok1",
-  "description": "smollm with temperature 1.1 using grok1 prompt"
-}

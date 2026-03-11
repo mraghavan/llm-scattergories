@@ -1,0 +1,7 @@
+{
+  "id": "gemma2-temp1.0-strategic_second_pass",
+  "model": "gemma2",
+  "temperature": 1.03,
+  "prompt_function": "strategic_second_pass",
+  "description": "gemma2 with temperature 1.0 using strategic_second_pass prompt"
+}

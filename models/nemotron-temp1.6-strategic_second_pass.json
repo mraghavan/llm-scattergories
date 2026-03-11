@@ -1,0 +1,7 @@
+{
+  "id": "nemotron-temp1.6-strategic_second_pass",
+  "model": "nemotron",
+  "temperature": 1.65,
+  "prompt_function": "strategic_second_pass",
+  "description": "nemotron with temperature 1.6 using strategic_second_pass prompt"
+}

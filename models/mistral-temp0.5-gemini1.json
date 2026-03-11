@@ -1,0 +1,7 @@
+{
+  "id": "mistral-temp0.5-gemini1",
+  "model": "mistral",
+  "temperature": 0.53,
+  "prompt_function": "gemini1",
+  "description": "mistral with temperature 0.5 using gemini1 prompt"
+}

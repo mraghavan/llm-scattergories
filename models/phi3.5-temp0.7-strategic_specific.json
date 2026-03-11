@@ -1,0 +1,7 @@
+{
+  "id": "phi3.5-temp0.7-strategic_specific",
+  "model": "phi3.5",
+  "temperature": 0.67,
+  "prompt_function": "strategic_specific",
+  "description": "phi3.5 with temperature 0.7 using strategic_specific prompt"
+}

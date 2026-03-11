@@ -1,7 +1,0 @@
-{
-  "id": "smollm-temp1.1-chatgpt1",
-  "model": "smollm",
-  "temperature": 1.1,
-  "prompt_function": "chatgpt1",
-  "description": "smollm with temperature 1.1 using chatgpt1 prompt"
-}

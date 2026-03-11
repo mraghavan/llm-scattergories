@@ -1,0 +1,7 @@
+{
+  "id": "llama3.1-temp1.0-deepseek1",
+  "model": "llama3.1",
+  "temperature": 1.03,
+  "prompt_function": "deepseek1",
+  "description": "llama3.1 with temperature 1.0 using deepseek1 prompt"
+}

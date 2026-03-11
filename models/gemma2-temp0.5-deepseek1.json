@@ -1,0 +1,7 @@
+{
+  "id": "gemma2-temp0.5-deepseek1",
+  "model": "gemma2",
+  "temperature": 0.52,
+  "prompt_function": "deepseek1",
+  "description": "gemma2 with temperature 0.5 using deepseek1 prompt"
+}
