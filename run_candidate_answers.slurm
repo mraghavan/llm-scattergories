@@ -11,6 +11,6 @@
 set -euo pipefail
 
 MIN_COUNT="${1:-10}"
-NUM_INSTANCES="${2:-15}"
+NUM_INSTANCES="${2:-25}"
 
 python3 candidate_answers.py --min-count "$MIN_COUNT" -n "$NUM_INSTANCES" --input-dir out

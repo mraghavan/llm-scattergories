@@ -11,7 +11,7 @@
 set -euo pipefail
 
 MIN_COUNT="${1:-75}"
-NUM_INSTANCES="${2:-10}"
+NUM_INSTANCES="${2:-25}"
 OUTPUT_PKL="${3:-info/compare_rankings_n${NUM_INSTANCES}_min${MIN_COUNT}.pkl}"
 
 time python3 compare_rankings.py \
