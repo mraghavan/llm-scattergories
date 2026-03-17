@@ -1,18 +1,22 @@
 # Overview
 The code in this repository implements [this paper](https://arxiv.org/abs/2412.08610).
-At a high level, it simulates and analyzes games of Scattergories using LLMs. There are two main components: data generation and data analysis.
+At a high level, it simulates and analyzes games of Scattergories using LLMs.
+
+There are two main workflows:
+- the original paper workflow for equilibrium analysis
+- the current ranking-and-clustering workflow, which generates samples, verifies them, builds shared candidate answer sets, scores answer likelihoods, and clusters model configurations by their answer rankings
 
 ## Data Generation
-Data generation proceeds in two steps:
-1. Generating samples of LLM responses to Scattergories prompts.
-2. Validing answers using an LLM.
+Data generation for the original paper workflow proceeds in two steps:
+1. generating samples of LLM responses to Scattergories prompts
+2. validating answers using an LLM
 
 Sample generation is done through [`generate_samples.py`](generate_samples.py). Example usage:
 ```
 python3 generate_samples.py -m [MODELS] -s [NUM_SAMPLES] -n [NUM_INSTANCES]
 ```
 This should be run on a GPU cluster. See [`run_generate_samples.slurm`](run_generate_samples.slurm) for an example of how to do this.
-Data will be written to `./samples/`.
+Data will be written to `./out/`.
 
 Sample verification is done through [`verify_samples.py`](verify_samples.py). Example usage:
 ```
@@ -20,9 +24,159 @@ python3 verify_samples.py -m [MODELS] -v [VERIFIER]
 ```
 This should also be run on a GPU cluster.
 See [`run_verify_samples.slurm`](run_verify_samples.slurm) for an example of how to do this.
-Data will be written to `./samples/`.
+Data will be written to `./out/`.
 The script [`run_all.sh`](run_all.sh) will schedule both of these `slurm` scripts to run in sequence.
 Particularly when testing, consider reducing the number of instances and samples generated.
+
+## Ranking Pipeline
+The current end-to-end ranking pipeline has five stages:
+1. generate samples for each `(model, prompt, temperature)` config
+2. verify those samples with `qwen2.5`
+3. build a shared candidate-answer set for each Scattergories instance
+4. evaluate answer likelihoods for every config on that shared answer set
+5. compare rankings and run spectral clustering
+
+### Canonical outputs
+The pipeline writes to these directories:
+- `models/`: one config JSON per `(model, prompt, temperature)`
+- `out/`: generated samples and verification results
+- `answer_sets/`: shared candidate answer sets per instance
+- `rankings/`: per-config answer likelihood rankings
+- `info/`: saved clustering artifacts such as `compare_rankings_n25_min10.pkl`
+
+### Config Set
+The ranking pipeline in this README generates results for:
+- `6` base models
+- `14` prompt variants total
+- `3` temperatures per model
+
+This gives `252` total configs.
+
+This includes `3` strategic prompts, which are used in the paper appendix.
+
+### One-command cluster run
+The simplest way to run the full pipeline is:
+
+```bash
+bash submit_models_pipeline.sh 10
+```
+
+This submits the full `n=25`, `min_count=10` pipeline in order:
+- [`run_generate_all_answers.slurm`](run_generate_all_answers.slurm)
+- [`run_verify_answers.slurm`](run_verify_answers.slurm)
+- [`run_candidate_answers.slurm`](run_candidate_answers.slurm)
+- [`run_evaluate_likelihoods.slurm`](run_evaluate_likelihoods.slurm)
+- [`run_compare_rankings.slurm`](run_compare_rankings.slurm)
+
+The argument to `submit_models_pipeline.sh` is `min_count`.
+
+### What each stage runs
+1. Generate model configs
+
+```bash
+find models -maxdepth 1 -name '*.json' -delete
+python3 make_model_configs.py
+```
+
+2. Generate samples
+
+```bash
+sbatch run_generate_all_answers.slurm
+```
+
+Current defaults in [`run_generate_all_answers.slurm`](run_generate_all_answers.slurm):
+- `n=25`
+- `s=50`
+- array job over config shards
+- `--enforce_starting_token`
+
+This writes `*_samples.pkl` files to `out/`.
+
+3. Verify answers
+
+```bash
+sbatch run_verify_answers.slurm
+```
+
+This runs:
+
+```bash
+python3 verify_samples.py -c models -v qwen2.5 -i out
+```
+
+This writes `*_qwen2.5_verified.pkl` files to `out/`.
+
+4. Build candidate answer sets
+
+```bash
+sbatch run_candidate_answers.slurm 10 25
+```
+
+This runs:
+
+```bash
+python3 candidate_answers.py --min-count 10 -n 25 --input-dir out
+```
+
+This writes `*_min10_answers.pkl` files to `answer_sets/`.
+
+5. Evaluate answer likelihoods
+
+```bash
+sbatch run_evaluate_likelihoods.slurm 10
+```
+
+This runs:
+
+```bash
+python3 evaluate_answer_likelihoods.py --job-num $SLURM_ARRAY_TASK_ID --num-jobs $SLURM_ARRAY_TASK_COUNT --min-count 10 -n 25
+```
+
+This writes `*_min10_rankings.pkl` files to `rankings/`.
+
+6. Compare rankings and cluster
+
+```bash
+python3 compare_rankings.py --no-plots --min-count 10 -n 25 --output-pkl info/compare_rankings_n25_min10.pkl
+```
+
+If you want to reproduce the clustering figures from the paper using only the original prompt families, run:
+
+```bash
+python3 compare_rankings.py --original-prompts-only --min-count 10 -n 25
+```
+
+If you want only the saved paper-style clustering artifact without plots, run:
+
+```bash
+python3 compare_rankings.py --no-plots --original-prompts-only --min-count 10 -n 25 --output-pkl info/compare_rankings_n25_min10_original.pkl
+```
+
+This restricts clustering to the original 11 prompt families while leaving upstream generation and likelihood-evaluation outputs unchanged.
+
+### Reuse behavior
+The pipeline can reuse existing files:
+- sample generation skips configs/instances that already have enough samples
+- verification reuses existing verification files unless the underlying sample files changed
+- likelihood evaluation reuses existing ranking files unless you delete them
+
+If you change sampling behavior in a way that affects the generated distributions, the clean rerun sequence is:
+1. delete `out/*_samples.pkl`
+2. keep or delete verification files depending on whether they are still valid for the new samples
+3. delete `answer_sets/*`
+4. delete `rankings/*`
+5. delete any stale `info/compare_rankings_*.pkl`
+6. rerun the full pipeline
+
+### Coverage checks
+For the canonical `n=25` run, the expected file counts are:
+- samples: `252 x 25 = 6300`
+- rankings: `252 x 25 = 6300`
+- answer sets: `25`
+- verification files: `25`
+
+When complete, `compare_rankings.py` should produce a pickle like:
+- `info/compare_rankings_n25_min10.pkl`
 
 ## Data Analysis
 Data analysis has several components:
@@ -79,44 +233,37 @@ If running on a Mac instead of a cluster, you can instead add models to [`comple
 
 The prompt templates require models to support ```system```, ```assistant```, and ```user``` conversation roles.
 
-# Spectral analysis
-To reproduce the spectral analysis plots (via `compare_rankings.py`), you must generate the data for the spectral analysis.
-Start with
-```
-python3 make_model_configs.py --max-temp-only
-```
-to generate a config file for each (LLM, prompt) pair in ```./models```.
-Then, run
-```
-sbatch run_generate_all_answers.slurm
-```
-to generate 50 samples per model config per Scattergories instance. Adjust the ```-n [num_instances]``` flag in the file as necessary.
+# Spectral Analysis
+To reproduce the current spectral analysis and clustering workflow, use the ranking pipeline above.
 
-Next, run
-```
-sbatch run_verify_answers.slurm
-```
-to verify answer correctness.
+The default saved artifact is:
 
-Then, run
+```bash
+info/compare_rankings_n25_min10.pkl
 ```
-python3 candidate_answers.py --min-count [min_count] -n [num_instances]
-```
-to take only correct answers that appear ```[min_count]``` times across all of the sampes. Again, adjust the ```-n [num_instances]``` flag. This will write to ```./answer_sets```.
-Then, run
-```
-python3 make_model_configs.py
-```
-to generate model configs for (LLM, prompt, temperature) tuples.
 
-Next, run
-```
-sbatch run_evaluate_likelihoods.slurm [min_count]
-```
-to evaluate the likelihood of each answer for each (LLM, prompt, temperature) tuple. Again, adjust ```-n [num_instances]``` as necessary, and make sure ```[min_count]``` matches what you used in the previous step. This will write to ```./rankings```.
+If you want to reproduce the clustering figures from the paper, run:
 
-Finally, run
+```bash
+python3 compare_rankings.py --original-prompts-only -n 25 --min-count 10
 ```
-python3 compare_rankings.py -n [num_instances] --min-count [min_count]
+
+If you only want the corresponding paper-style data artifact on a cluster without rendering plots, run:
+
+```bash
+python3 compare_rankings.py --no-plots --original-prompts-only -n 25 --min-count 10 --output-pkl info/compare_rankings_n25_min10_original.pkl
 ```
-to analyze the data and produce the plots. The paper uses ```num_instances=10``` and ```min_count=10```.
+
+The saved pickle contains:
+- `avg_distance_matrix`
+- `distance_matrices`
+- `labels`
+- `embedding_2d`
+- `embedding_3d`
+- `confusion_matrix`
+- `model_ids`
+- `model_names`
+- `accuracy`
+- `similarity_matrix`
+- `true_label_names`
+- `cluster_names`

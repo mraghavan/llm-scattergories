@@ -34,16 +34,19 @@ ALL_EXAMPLES = [
     ("Letter: D\nCategory: Hobbies", "Drawing"),
 ]
 
-STRATEGIC_COMMON_EXAMPLES = [
-    ("Letter: C\nCategory: Countries", "Canada"),
-    ("Letter: V\nCategory: Instruments", "Violin"),
-    ("Letter: H\nCategory: Hobbies", "Hiking"),
-]
-
 STRATEGIC_UNIQUE_EXAMPLES = [
     ("Letter: C\nCategory: Countries", "Comoros"),
-    ("Letter: V\nCategory: Instruments", "Vibraphone"),
     ("Letter: H\nCategory: Hobbies", "Herpetology"),
+]
+
+STRATEGIC_SPECIFIC_EXAMPLES = [
+    ("Letter: V\nCategory: Instruments", "Vibraphone"),
+    ("Letter: B\nCategory: Things in a kitchen", "Bundt pan"),
+]
+
+STRATEGIC_SECOND_PASS_EXAMPLES = [
+    ("Letter: M\nCategory: Dogs", "Mastiff"),
+    ("Letter: S\nCategory: Things in a garage", "Socket wrench"),
 ]
 
 # Create a registry for prompt functions
@@ -165,6 +168,8 @@ def claude2_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -
 def chatgpt2_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
     messages = [
         {"role": "system", "content": "You are playing a game of Scattergories. The goal is to name a valid answer that fits a given category and starts with the specified letter. Your answer should be unique, plausible, and as specific as possible. Only respond with the answer—no explanations or extra text."},
+        {"role": "user", "content": "Letter: N\nCategory: Kitchen tools"},
+        {"role": "assistant", "content": "Nutcracker"},
     ]
     messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
     return apply_template(messages, tokenizer)
@@ -173,6 +178,8 @@ def chatgpt2_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) 
 def grok2_prompt(letter: str, category: str, tokenizer: PreTrainedTokenizer) -> str:
     messages = [
         {"role": "system", "content": "You are a creative and quick-thinking assistant playing Scattergories. Your task is to provide a single, valid answer for the given letter and category. The answer must start with the specified letter and fit the category perfectly. Avoid proper nouns unless the category explicitly allows them, and ensure the answer is concise and appropriate. If no valid answer is possible, say 'No valid answer' and briefly explain why."},
+        {"role": "user", "content": "Letter: P\nCategory: Things in a toolbox"},
+        {"role": "assistant", "content": "Pliers"},
     ]
     messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
     return apply_template(messages, tokenizer)
@@ -236,7 +243,7 @@ def strategic_specific_prompt(letter: str, category: str, tokenizer: PreTrainedT
         },
         {"role": "assistant", "content": "Ready."},
     ]
-    for q, a in STRATEGIC_UNIQUE_EXAMPLES:
+    for q, a in STRATEGIC_SPECIFIC_EXAMPLES:
         messages.append({"role": "user", "content": q})
         messages.append({"role": "assistant", "content": a})
     messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})
@@ -256,14 +263,14 @@ def strategic_second_pass_prompt(letter: str, category: str, tokenizer: PreTrain
         {
             "role": "user",
             "content": (
-                "Imagine your first answer was the most obvious valid answer. "
-                "Now give the best second answer instead. "
+                "Take into account answers that other players might commonly use. "
+                "Then, produce a different answer. "
                 "Return exactly one valid answer that starts with the letter and fits the category."
             ),
         },
         {"role": "assistant", "content": "Got it."},
     ]
-    for q, a in STRATEGIC_COMMON_EXAMPLES:
+    for q, a in STRATEGIC_SECOND_PASS_EXAMPLES:
         messages.append({"role": "user", "content": q})
         messages.append({"role": "assistant", "content": a})
     messages.append({"role": "user", "content": f"Letter: {letter}\nCategory: {category}"})

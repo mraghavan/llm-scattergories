@@ -1,7 +1,7 @@
 from pathlib import Path
 from file_manager import FileManager
 import pandas as pd
-from scat_utils import get_deterministic_instances
+from scat_utils import get_deterministic_instances, standardize_str
 from completion_hf import CompletionEngineHF, MODELS
 import numpy as np
 from make_model_configs import PROMPT_REGISTRY
@@ -23,14 +23,17 @@ def load_model_configs(from_config: str = '') -> pd.DataFrame:
             raise ValueError(f"Config path does not exist: {from_config}")
         if config_path.is_file():
             with open(config_path, 'r') as f:
-                return pd.DataFrame([json.load(f)])
+                df = pd.DataFrame([json.load(f)])
+                return df[df['model'] != 'smollm'].reset_index(drop=True)
         configs = []
         for fname in sorted(config_path.glob("*.json")):
             with open(fname, 'r') as f:
                 configs.append(json.load(f))
-        return pd.DataFrame(configs)
+        df = pd.DataFrame(configs)
+        return df[df['model'] != 'smollm'].reset_index(drop=True)
     fm = FileManager.from_base(Path('./'))
-    return fm.get_all_model_configs()
+    df = fm.get_all_model_configs()
+    return df[df['model'] != 'smollm'].reset_index(drop=True)
 
 def load_candidate_answers(fm: FileManager, letter: str, category: str, min_count: int = 1) -> set:
     """
@@ -71,13 +74,23 @@ def load_model(model_name: str, max_temperature: float = 1.0, top_p: float = 0.9
     )
     return engine
 
-def compute_answer_nll(prompt: str, answer: str, completion_engine: CompletionEngineHF, temperature: float = 1.0, logits_cache: dict = None) -> float:
+def compute_answer_nll(
+        prompt: str,
+        answer: str,
+        allowed_tokens: set,
+        allowed_starting_tokens: set,
+        completion_engine: CompletionEngineHF,
+        temperature: float = 1.0,
+        logits_cache: dict = None,
+        ) -> float:
     """
     Compute the negative log likelihood of an answer given a prompt.
     
     Args:
         prompt: The input prompt
         answer: The answer to compute likelihood for
+        allowed_tokens: Tokens permitted anywhere in the answer
+        allowed_starting_tokens: Tokens permitted at the first answer position
         completion_engine: The CompletionEngineHF instance
         temperature: Temperature for probability computation
         logits_cache: Optional dictionary to cache logits between calls
@@ -91,50 +104,82 @@ def compute_answer_nll(prompt: str, answer: str, completion_engine: CompletionEn
     # Capitalize the first letter of the answer
     answer = answer[0].upper() + answer[1:]
     
-    # Encode the answer
-    answer_tokens = completion_engine.tokenizer.encode(answer, add_special_tokens=False) + [completion_engine.tokenizer.eos_token_id]
-    
-    # Initialize total log probability
-    total_log_prob = 0.0
-    
-    # For each token in the answer, compute its probability given the prompt + previous tokens
-    current_input = prompt_tokens.copy()
-    for token in answer_tokens:
-        # Convert current_input to tuple for use as dictionary key
-        input_key = tuple(current_input)
-        
-        # Get logits from cache or compute them
-        if logits_cache is not None and input_key in logits_cache:
-            logits = logits_cache[input_key]
-        else:
-            logits = completion_engine.get_logits_raw(current_input)
-            # Cache logits if total log probability is above threshold
-            if logits_cache is not None and total_log_prob > np.log(0.01):
-                logits_cache[input_key] = logits
-        
-        # Apply temperature
-        logits = logits / temperature
-        
-        # Convert to probabilities
-        probs = np.exp(logits - np.max(logits))  # Subtract max for numerical stability
-        probs = probs / np.sum(probs)
-        
-        # Get probability of current token. If the token is impossible under the
-        # model distribution, treat the full answer as zero-probability.
-        token_prob = probs[token]
-        if not np.isfinite(token_prob) or token_prob <= 0:
+    def score_token_path(answer_tokens: list[int]) -> float:
+        if not answer_tokens:
             return np.inf
-        
-        # Add to total log probability
-        total_log_prob += np.log(token_prob)
-        
-        # Add token to current input for next iteration
-        current_input.append(token)
-    
-    # Return negative log likelihood
-    if not np.isfinite(total_log_prob):
+        if answer_tokens[0] not in allowed_starting_tokens:
+            return np.inf
+        if any(token not in allowed_tokens for token in answer_tokens):
+            return np.inf
+
+        total_log_prob = 0.0
+        current_input = prompt_tokens.copy()
+        for i, token in enumerate(answer_tokens):
+            input_key = tuple(current_input)
+            if logits_cache is not None and input_key in logits_cache:
+                logits = logits_cache[input_key]
+            else:
+                logits = completion_engine.get_logits_raw(current_input)
+                if logits_cache is not None and total_log_prob > np.log(0.01):
+                    logits_cache[input_key] = logits
+
+            logits = logits / temperature
+            probs = np.exp(logits - np.max(logits))
+            probs = probs / np.sum(probs)
+
+            if i == 0:
+                mask = np.zeros_like(probs, dtype=bool)
+                mask[list(allowed_starting_tokens)] = True
+                restricted_mass = np.sum(probs[mask])
+                if not np.isfinite(restricted_mass) or restricted_mass <= 0:
+                    return np.inf
+                probs = np.where(mask, probs / restricted_mass, 0.0)
+
+            token_prob = probs[token]
+            if not np.isfinite(token_prob) or token_prob <= 0:
+                return np.inf
+
+            total_log_prob += np.log(token_prob)
+            current_input.append(token)
+
+        if not np.isfinite(total_log_prob):
+            return np.inf
+        return -total_log_prob
+
+    # Score only the answer tokens. For chat-template models, forcing EOS can
+    # incorrectly make an otherwise valid answer impossible.
+    answer_tokens = completion_engine.tokenizer.encode(answer, add_special_tokens=False)
+    if not answer_tokens:
         return np.inf
-    return -total_log_prob
+
+    canonical_nll = score_token_path(answer_tokens)
+    if np.isfinite(canonical_nll):
+        return canonical_nll
+
+    # Pragmatic first-token fallback: some models reach the same normalized
+    # surface form through a different first tokenization path (e.g. "Q" + ...).
+    target_norm = standardize_str(answer)
+    best_nll = np.inf
+    for first_token in allowed_starting_tokens:
+        piece = completion_engine.tokenizer.decode([first_token])
+        piece_norm = standardize_str(piece)
+        if not piece_norm or not target_norm.startswith(piece_norm):
+            continue
+        suffix = answer[len(piece):]
+        if piece != answer[:len(piece)]:
+            continue
+        suffix_tokens = completion_engine.tokenizer.encode(suffix, add_special_tokens=False) if suffix else []
+        candidate_tokens = [first_token] + suffix_tokens
+        decoded_candidate = completion_engine.tokenizer.decode(candidate_tokens)
+        if standardize_str(decoded_candidate) != target_norm:
+            continue
+        candidate_nll = score_token_path(candidate_tokens)
+        if candidate_nll < best_nll:
+            best_nll = candidate_nll
+    if np.isfinite(best_nll):
+        return best_nll
+
+    return np.inf
 
 def get_all_jobs(model_configs, instances):
     """
@@ -197,13 +242,22 @@ def process_job(letter, category, model_config, fm, min_count, prev_engine=None)
     # Get the prompt function from the registry
     prompt_fn = PROMPT_REGISTRY[model_config['prompt_function']]
     prompt = prompt_fn(letter, category, engine.tokenizer)
+    allowed_tokens, allowed_starting_tokens = engine.get_allowed_tokens(letter)
     
     # Initialize cache for this model's answers
     logits_cache = {}
     
     # Compute NLL for each new candidate answer
     for answer in sorted(new_answers):
-        nll = compute_answer_nll(prompt, answer, engine, temperature, logits_cache)
+        nll = compute_answer_nll(
+            prompt,
+            answer,
+            allowed_tokens,
+            allowed_starting_tokens,
+            engine,
+            temperature,
+            logits_cache,
+        )
         print(f"NLL for {answer}: {nll:.2f}")
         model_nlls[answer] = nll
     

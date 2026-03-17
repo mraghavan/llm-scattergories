@@ -30,6 +30,8 @@ parser.add_argument('--num_samples', '-s', type=int, default=100)
 parser.add_argument('--batch_size', '-b', type=int, default=4)
 parser.add_argument('--no-cache', action='store_true', default=False,
                     help='Disable writing cache files')
+parser.add_argument('--enforce_starting_token', action='store_true', default=False,
+                    help='Restrict the first sampled token to allowed_starting_tokens')
 
 EPS_GRID = 0.05
 LARGE_TEMP = 3.0
@@ -52,21 +54,42 @@ class SortedLogitsAndTokens():
         # print('Size reduction:', logits.size, '->', self.tokens.size, '(', self.tokens.size / logits.size, ')')
 
 
-def get_new_sample_prefix(temperature: float, top_p: float, cache: dict[tuple, SortedLogitsAndTokens]) -> tuple[list[int], float]:
+def get_new_sample_prefix(
+        temperature: float,
+        top_p: float,
+        cache: dict[tuple, SortedLogitsAndTokens],
+        allowed_starting_tokens: set | None = None,
+        enforce_starting_token: bool = False,
+        ) -> tuple[list[int], float]:
     sample = ()
     lp = 0.0
     while sample in cache:
         logits_and_tokens = cache[sample]
         # both length 1
-        tok, log_prob = sample_from_sorted_logits(logits_and_tokens, temperature, top_p)
+        allowed = allowed_starting_tokens if enforce_starting_token and len(sample) == 0 else None
+        tok, log_prob = sample_from_sorted_logits(logits_and_tokens, temperature, top_p, allowed_token_ids=allowed)
         sample += (tok,)
         lp += log_prob
     return list(sample), lp
 
-def sample_from_sorted_logits(sorted_logits: SortedLogitsAndTokens, temp: float, top_p: float) -> tuple[int, float]:
+def sample_from_sorted_logits(
+        sorted_logits: SortedLogitsAndTokens,
+        temp: float,
+        top_p: float,
+        allowed_token_ids: set[int] | None = None,
+        ) -> tuple[int, float]:
     logits = sorted_logits.logits
     tokens = sorted_logits.tokens
     probs = softmax_temperature(logits, temp)
+    if allowed_token_ids is not None:
+        allowed_mask = np.array([tok in allowed_token_ids for tok in tokens], dtype=bool)
+        if not np.any(allowed_mask):
+            raise ValueError('No allowed tokens available for constrained sampling')
+        probs = np.where(allowed_mask, probs, 0.0)
+        prob_sum = np.sum(probs)
+        if prob_sum <= 0 or not np.isfinite(prob_sum):
+            raise ValueError('Constrained sampling probability mass is zero')
+        probs = probs / prob_sum
     cumulative_probs = np.cumsum(probs)
     mask = np.array(cumulative_probs > 1 - top_p)
     masked_probs = probs[mask]
@@ -113,6 +136,7 @@ def generate_samples(
         max_tokens: int=6,
         batch_size: int=8,
         top_p: float = 0.95,
+        enforce_starting_token: bool = False,
         ) -> dict:
     allowed_tokens, allowed_starting_tokens = engine.get_allowed_tokens(letter)
     tokenized_prompt = engine.encode_prompt(prompt)
@@ -158,7 +182,13 @@ def generate_samples(
             c[generated_text] += 1
 
     while len(queue) < batch_size and sum(c.values()) + len(queue) < num_samples:
-        new_sample, new_lp = get_new_sample_prefix(temperature, top_p, cache)
+        new_sample, new_lp = get_new_sample_prefix(
+            temperature,
+            top_p,
+            cache,
+            allowed_starting_tokens=allowed_starting_tokens,
+            enforce_starting_token=enforce_starting_token,
+        )
         if sample_complete(new_sample):
             process_response(new_sample, new_lp)
         else:
@@ -175,7 +205,13 @@ def generate_samples(
             # only cache if there's a reasonably large chance of sampling it again
             if tup not in cache and np.exp(log_probs[i]) > CACHE_MIN:
                 cache[tup] = sorted_logits_list[i]
-            new_token, new_log_prob = sample_from_sorted_logits(sorted_logits_list[i], temperature, top_p)
+            allowed = allowed_starting_tokens if enforce_starting_token and len(t) == 0 else None
+            new_token, new_log_prob = sample_from_sorted_logits(
+                sorted_logits_list[i],
+                temperature,
+                top_p,
+                allowed_token_ids=allowed,
+            )
             new_tokens.append(new_token)
             new_log_probs.append(new_log_prob)
         assert len(new_tokens) == len(queue)
@@ -189,7 +225,13 @@ def generate_samples(
             if sample_complete(t):
                 process_response(t, lp)
                 while sum(c.values()) + len(queue) <= num_samples:
-                    new_sample, new_lp = get_new_sample_prefix(temperature, top_p, cache)
+                    new_sample, new_lp = get_new_sample_prefix(
+                        temperature,
+                        top_p,
+                        cache,
+                        allowed_starting_tokens=allowed_starting_tokens,
+                        enforce_starting_token=enforce_starting_token,
+                    )
                     if sample_complete(new_sample):
                         process_response(new_sample, new_lp)
                     else:
@@ -315,7 +357,18 @@ if __name__ == '__main__':
                 continue
             prompt = prompt_fn(letter, category, engine.tokenizer)
             start = time.time()
-            info = generate_samples(engine, letter, category, temp, args.num_samples, prompt, batch_size = args.batch_size, cache=cache, existing_info=existing_info)
+            info = generate_samples(
+                engine,
+                letter,
+                category,
+                temp,
+                args.num_samples,
+                prompt,
+                batch_size=args.batch_size,
+                cache=cache,
+                existing_info=existing_info,
+                enforce_starting_token=args.enforce_starting_token,
+            )
             elapsed = time.time() - start
             print(f'Elapsed time: {elapsed:.2f}')
             fm.write_samples(letter, category, model_id, temp, info)

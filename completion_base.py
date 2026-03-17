@@ -20,23 +20,33 @@ class CompletionEngine():
         self.max_temperature = max_temperature
         self.top_p = top_p
         self.nickname = nickname
+        self._allowed_tokens_cache = {}
+        self._decoded_vocab_cache = None
 
     def get_allowed_tokens(self, letter: str) -> tuple[set, set]:
+        cache_key = letter.lower()
+        if cache_key in self._allowed_tokens_cache:
+            return self._allowed_tokens_cache[cache_key]
         allowed_characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' + 'abcdefghijklmnopqrstuvwxyz' + ' ' + '0123456789'
         allowed_characters = set(allowed_characters)
         allowed_starting_tokens = set()
         allowed_tokens = set()
         allowed_tokens.add(self.tokenizer.eos_token_id)
-        vocabulary = list(self.tokenizer.get_vocab())
-        for token in vocabulary:
-            token_id = self.tokenizer.convert_tokens_to_ids(token)
-            token = self.tokenizer.decode(token_id)
+        if self._decoded_vocab_cache is None:
+            decoded_vocab = []
+            for token in self.tokenizer.get_vocab():
+                token_id = self.tokenizer.convert_tokens_to_ids(token)
+                decoded_vocab.append((token_id, self.tokenizer.decode(token_id)))
+            self._decoded_vocab_cache = decoded_vocab
+        for token_id, token in self._decoded_vocab_cache:
             # print(token_id, token)
             if all(c in allowed_characters for c in token):
                 allowed_tokens.add(token_id)
             if token_id in allowed_tokens and token.lower().lstrip().startswith(letter.lower()):
                 allowed_starting_tokens.add(token_id)
-        return allowed_tokens, allowed_starting_tokens
+        result = (allowed_tokens, allowed_starting_tokens)
+        self._allowed_tokens_cache[cache_key] = result
+        return result
 
     def get_logits(self, prompt_tokens: list) -> tuple[np.ndarray, np.ndarray]:
         cache = None

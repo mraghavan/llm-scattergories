@@ -12,6 +12,29 @@ from l1_isotonic import isotonic_regression_l1_total_order
 from plot_inversions import total_variation_distance
 from scipy.optimize import linear_sum_assignment
 import pickle
+from collections import defaultdict, Counter
+
+ORIGINAL_PROMPT_NAMES = {
+    'default',
+    'gemini1',
+    'chatgpt1',
+    'claude1',
+    'grok1',
+    'deepseek1',
+    'gemini2',
+    'claude2',
+    'chatgpt2',
+    'grok2',
+    'deepseek2',
+}
+
+
+def get_prompt_name(model_id: str) -> str:
+    parts = model_id.split('-')
+    if len(parts) < 3:
+        return ''
+    return '-'.join(parts[2:])
+
 
 def load_all_rankings(fm: FileManager, letter: str, category: str, min_count: int) -> dict:
     """
@@ -243,7 +266,7 @@ def cluster_rankings_weighted(
 def get_weighted_inversions(d1: dict[int, float], d2: dict[int, float]) -> float:
     # get the ranking of d1
     ranking1 = sorted(d1.keys(), key=lambda x: d1[x])
-    values2 = [d2[i] for i in ranking1]
+    values2 = [d2.get(i, 0.0) for i in ranking1]
     ordered = isotonic_regression_l1_total_order(np.array(values2), np.ones(len(values2)))
     return total_variation_distance(values2, ordered)
 
@@ -365,6 +388,8 @@ def main():
                       help='Number of instances to analyze (default: 1)')
     parser.add_argument('--min-count', type=int, default=100,
                       help='Minimum count threshold for including an answer (default: 100)')
+    parser.add_argument('--original-prompts-only', action='store_true', default=False,
+                      help='Restrict clustering to the original 11 prompt families and exclude strategic prompts')
     parser.add_argument('--no-plots', action='store_true', default=False,
                       help='Compute clustering outputs without generating plots')
     parser.add_argument('--output-pkl', type=str, default='info/compare_rankings_results.pkl',
@@ -373,36 +398,63 @@ def main():
 
     # Initialize FileManager
     fm = FileManager.from_base(Path('./'))
+    allowed_model_ids = set(fm.get_all_model_configs()['id'])
+    if args.original_prompts_only:
+        allowed_model_ids = {
+            model_id for model_id in allowed_model_ids
+            if get_prompt_name(model_id) in ORIGINAL_PROMPT_NAMES
+        }
+        print(
+            "Restricting compare_rankings to original prompts only: "
+            f"{len(allowed_model_ids)} allowed model configs"
+        )
     # fm.locations.rankings_dir = Path('./rankings2')
     
     # Load rankings for specified letter and category
     instances = get_deterministic_instances(args.num_instances)
     all_valid_model_ids = set()
+    filter_reasons = defaultdict(list)
+    all_seen_model_ids = set()
     
     # First pass: collect all invalid model IDs
     for letter, category in instances:
         valid_model_ids = set()
         rankings = load_all_rankings(fm, letter, category, args.min_count)
-        all_answers = next(iter(rankings.values())).keys()
+        local_reason_counts = Counter()
         
         for model_id, model_rankings in rankings.items():
-            # Check for missing answers
-            missing_answers = all_answers - set(model_rankings.keys())
-            if missing_answers:
-                # print(f"Missing answers for {model_id} in {letter}/{category}: {missing_answers}")
-                pass
-            elif not np.any(np.isfinite(list(model_rankings.values()))):
+            all_seen_model_ids.add(model_id)
+            if model_id not in allowed_model_ids:
+                filter_reasons[model_id].append((letter, category, 'not_in_current_models', 0))
+                local_reason_counts['not_in_current_models'] += 1
+                continue
+            if not np.any(np.isfinite(list(model_rankings.values()))):
                 print(f"Non-finite NLLs for {model_id} in {letter}/{category}")
-                pass
-            elif model_id.startswith('smollm'):
-                pass
+                filter_reasons[model_id].append((letter, category, 'all_nonfinite', 0))
+                local_reason_counts['all_nonfinite'] += 1
             else:
                 valid_model_ids.add(model_id)
+                local_reason_counts['kept'] += 1
+        print(
+            f"Filter summary for {letter}/{category}: "
+            f"kept={local_reason_counts['kept']} "
+            f"not_in_current_models={local_reason_counts['not_in_current_models']} "
+            f"all_nonfinite={local_reason_counts['all_nonfinite']}"
+        )
         if not all_valid_model_ids:
             all_valid_model_ids = valid_model_ids
         else:
             all_valid_model_ids.intersection_update(valid_model_ids)
     sorted_all_valid_model_ids = sorted(all_valid_model_ids)
+    dropped_model_ids = sorted(all_seen_model_ids - all_valid_model_ids)
+    print(
+        f"Final model filter: kept={len(sorted_all_valid_model_ids)} "
+        f"dropped={len(dropped_model_ids)}"
+    )
+    for model_id in dropped_model_ids:
+        print(f"DROPPED {model_id}")
+        for letter, category, reason, payload in filter_reasons[model_id]:
+            print(f"  {letter}/{category}: {reason}")
     
     # Now proceed with the analysis
     distance_matrices = []
@@ -411,9 +463,11 @@ def main():
         model_ids = sorted(list(rankings.keys()))
         model_names = [model_id.split('-')[0] for model_id in model_ids]
         unique_model_names = list(set(model_names))
-        all_answers = next(iter(rankings.values())).keys()
-        # verify that all answers are present in all rankings
-        # assign a unique integer to each answer
+        # Build the answer index over the union of answers present in rankings for
+        # this instance. At larger n/min-count settings, the saved ranking dicts
+        # can legitimately differ in support across configs.
+        all_answers = sorted({answer for model_rankings in rankings.values()
+                              for answer in model_rankings.keys()})
         answer_to_id = {answer: i for i, answer in enumerate(all_answers)}
         id_to_answer = {i: answer for answer, i in answer_to_id.items()}
         # for each model_id, convert NLLs to probability distributions
@@ -423,7 +477,8 @@ def main():
             # Convert NLLs to log probabilities (multiply by -1)
             if model_id not in all_valid_model_ids:
                 continue
-            nlls = np.array(list(model_rankings.values()), dtype=float)
+            local_answers = list(model_rankings.keys())
+            nlls = np.array([model_rankings[answer] for answer in local_answers], dtype=float)
             finite_mask = np.isfinite(nlls)
             probs = np.zeros_like(nlls)
             if np.any(finite_mask):
@@ -434,17 +489,19 @@ def main():
                     probs[finite_mask] = finite_probs / np.sum(finite_probs)
             assert np.all(probs >= 0)
             # Create dictionary mapping answer IDs to probabilities
-            rankings_dict[model_id] = {answer_to_id[answer]: prob 
-                                     for answer, prob in zip(model_rankings.keys(), probs)}
+            rankings_dict[model_id] = {
+                answer_to_id[answer]: prob
+                for answer, prob in zip(local_answers, probs)
+            }
             # print out the 2 highest probability answers for each model
             top_ids = np.argsort(probs)[::-1][:2]
             if len(top_ids) == 1:
-                print(f"{model_id}: {id_to_answer[top_ids[0]]} ({probs[top_ids[0]]:.2f})")
+                print(f"{model_id}: {local_answers[top_ids[0]]} ({probs[top_ids[0]]:.2f})")
             else:
                 print(
                     f"{model_id}: "
-                    f"{id_to_answer[top_ids[0]]} ({probs[top_ids[0]]:.2f}), "
-                    f"{id_to_answer[top_ids[1]]} ({probs[top_ids[1]]:.2f})"
+                    f"{local_answers[top_ids[0]]} ({probs[top_ids[0]]:.2f}), "
+                    f"{local_answers[top_ids[1]]} ({probs[top_ids[1]]:.2f})"
                 )
         distance_matrix = get_distance_matrix(rankings_dict)
         distance_matrices.append(distance_matrix)
